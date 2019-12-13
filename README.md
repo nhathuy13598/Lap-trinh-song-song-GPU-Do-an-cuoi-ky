@@ -10,13 +10,14 @@ Viết thuật toán Radix Sort song song và tối ưu thuật toán này
 **Đích đến:** Tối ưu gần bằng thuật toán sắp xếp có sẵn trong thư viện Thrust
 ## Kế hoạch thực hiện (dự kiến)
 **Ngày dự kiến vấn đáp:** `12/01/2020`
+
 |Công việc|Ngày bắt đầu|Ngày kết thúc|
-|--|:--:|:--:|
-|Code thuật toán radix sort tuần tự|13/12/2019|16/12/2019|
-|Code thuật toán radix sort song song|17/12/2019|22/12/2019|
-|Tối ưu thuật toán radix sort|23/12/2019|09/01/2020|
-|Viết báo cáo|10/01/2020|10/01/2020|
-|Viết slide|11/01/2020|11/01/2020|
+|---|:---:|:---:|
+|Code thuật toán radix sort tuần tự|13/12/2019|16/12/2019|  
+|Code thuật toán radix sort song song|17/12/2019|22/12/2019|  
+|Tối ưu thuật toán radix sort|23/12/2019|09/01/2020|  
+|Viết báo cáo|10/01/2020|10/01/2020|  
+|Viết slide|11/01/2020|11/01/2020|  
 ## Quy trình tối ưu thuật toán Radix Sort
 Việc tối ưu thuật toán sẽ chia làm 3 bước: `Phân tích`, `Thiết kế` và `Cài đặt`  
 Vì thầy sẽ đánh giá điểm dựa vào quy trình tối ưu thuật toán là có hợp lý hay không hơn là đánh giá vào thời gian chạy của thuật toán nên ***tất cả các bước tối ưu hóa sau khi cài đặt được thuật toán radix sort song song sẽ được ghi tiếp ở file này theo các bước trên***  
