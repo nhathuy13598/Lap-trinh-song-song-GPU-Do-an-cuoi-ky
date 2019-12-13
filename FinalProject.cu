@@ -55,9 +55,16 @@ struct GpuTimer
 
 // Sequential radix sort
 // Assume: nBits (k in slides) in {1, 2, 4, 8, 16}
+// Ta sẽ sử dụng ý tưởng từ thuật toán sắp xếp tuần tự mới chứ không phải
+// thuật toán mà ta đã sử dụng trong bài tập số 3
+/**
+    Sắp xếp tuần tự trên host
+    @blockSize kích thước một block mà ta sẽ duyệt (Ta vẫn duyệt tuần tự)
+*/
 void sortByHost(const uint32_t * in, int n,
                 uint32_t * out,
-                int nBits)
+                int nBits,
+                int blockSize)
 {
     int nBins = 1 << nBits; // 2^nBits
     int * hist = (int *)malloc(nBins * sizeof(int));
@@ -79,7 +86,8 @@ void sortByHost(const uint32_t * in, int n,
 	// (using STABLE counting sort)
     for (int bit = 0; bit < sizeof(uint32_t) * 8; bit += nBits)
     {
-    	// TODO: Compute "hist" of the current digit
+        // TODO: Mỗi block tính local histogram của digit-đang-xét trên phần 
+        // dữ liệu của mình
         memset(hist, 0, nBins * sizeof(int));
         for (int i = 0; i < n; i++)
         {
@@ -87,12 +95,23 @@ void sortByHost(const uint32_t * in, int n,
             hist[bin]++;
         }
 
-    	// TODO: Scan "hist" (exclusively) and save the result to "histScan"
+        // TODO: Với mảng 2 chiều mà mỗi dòng là local hist của một block,
+        // thực hiện exclusive scan trên mảng một chiều gồm các cột
+        // nối lại với nhau (Xem slide để hiểu rõ)
         histScan[0] = 0;
         for (int bin = 1; bin < nBins; bin++)
             histScan[bin] = histScan[bin - 1] + hist[bin - 1];
 
-    	// TODO: From "histScan", scatter elements in "src" to correct locations in "dst"
+        // TODO: Mỗi block thực hiện scatter phần dữ liệu của mình xuống
+        // mảng output dựa vào kết quả scan ở trên
+        //      ▪ Mỗi block sắp xếp cục bộ phần dữ liệu của mình theo digit đang
+        //          xét (dùng Radix Sort với k=1 bit và làm trên SMEM)
+        //      ▪ Mỗi block tính chỉ số bắt đầu (xét cục bộ trong block) của mỗi giá
+        //          trị digit
+        //      ▪ Mỗi thread trong block tính số lượng phần tử đứng trước mình
+        //          trong block có digit-đang-xét bằng digit-đang-xét của phần tử mà
+        //          mình phụ trách
+        //      ▪ Mỗi thread trong block tính rank và thực hiện scatter
         for (int i = 0; i < n; i++)
         {
             int bin = (src[i] >> bit) & (nBins - 1);
