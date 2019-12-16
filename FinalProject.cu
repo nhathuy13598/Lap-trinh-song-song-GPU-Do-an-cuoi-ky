@@ -91,8 +91,8 @@ void sortByHost(const uint32_t * in, int n,
         // TODO: Mỗi block tính local histogram của digit-đang-xét trên phần 
         // dữ liệu của mình và chép vào mảng listLocalHist
 
-        //printf("So luong phan tu mang la: %d\n", n);
-        //printf("Kich thuoc blockSize la: %d\n", blockSize);
+        printf("So luong phan tu mang la: %d\n", n);
+        printf("Kich thuoc blockSize la: %d\n", blockSize);
         memset(localHist, 0, nBins * sizeof(int));
         int count = 0;
         for(int i=0; i<n; i++){
@@ -102,18 +102,18 @@ void sortByHost(const uint32_t * in, int n,
             if (count == blockSize || i == n - 1){                    // Kiểm tra xem ta đã duyệt được blockSize phần tử hay chưa
                 count = 0;
                 
-                // TODO: Ta in ra mảng localHist
-                /*printf("Mang localHist: ");
+                // [DEBUG]: Ta in ra mảng localHist
+                printf("Mang localHist: ");
                 for(int j=0; j < nBins; j++){
                     printf("%d ", localHist[j]);
                 }
-                printf("\n");*/
+                printf("\n");
 
                 // TODO: Chép dữ liệu vào listLocalHist
                 int blockIndex = (i == n - 1)? (n - 1) / blockSize : (i + 1) / blockSize - 1;       // Tính xem đây là block thứ mấy
-                //printf("BlockIndex la: %d\n", blockIndex);
+                printf("BlockIndex la: %d\n", blockIndex);
                 int index = blockIndex * nBins;                                                     // Tính chỉ số bắt đầu trong mảng listLocalHist
-                //printf("Index trong mang listLocalHist: %d\n", index);
+                printf("Index trong mang listLocalHist: %d\n", index);
                 for (int j = 0; j < nBins; j++ ){
                     listLocalHist[index++] =  localHist[j];
                 }
@@ -122,12 +122,32 @@ void sortByHost(const uint32_t * in, int n,
                 memset(localHist, 0, nBins * sizeof(int));
             }
         }
+        // [DEBUG]: In ra mảng listLocalHist
+        printf("Mang listLocalHist: ");
+        for(int i=0; i < sizeHist; i++){
+            printf("%d ", listLocalHist[i]);
+        }
+        printf("\n");
 
         // TODO: Với mảng 2 chiều mà mỗi dòng là local hist của một block,
         // thực hiện exclusive scan trên mảng một chiều gồm các cột
         // nối lại với nhau (Xem slide để hiểu rõ)
-       
+        int *listLocalHistConvert = (int*)malloc(sizeHist * sizeof(int));
+        int blockDimension = (n - 1) / blockSize + 1;
+        int indexLLHC = 0;                                                                  // Chỉ số trong mảng listLocalHistConvert
+        for(int i=0; i<nBins; i++){                                                         // Duyệt tất cả các phần tử trong một localHist
 
+            for(int j=0; j < blockDimension; j++){                                          // Duyệt tất cả các localHist
+                listLocalHistConvert[indexLLHC++] = listLocalHist[i + j * nBins];           // i là chỉ số bin trong localHist
+                                                                                            // j * nBins là chỉ số của block
+            }
+        }
+        // [DEBUG]: In ra mảng listLocalHistConvert
+        printf("Mang listLocalHistConvert: ");
+        for(int i=0; i<sizeHist; i++){
+            printf("%d ", listLocalHistConvert[i]);
+        } 
+        printf("\n");
 
         // TODO: Mỗi block thực hiện scatter phần dữ liệu của mình xuống
         // mảng output dựa vào kết quả scan ở trên
@@ -151,10 +171,6 @@ void sortByHost(const uint32_t * in, int n,
 
     // TODO: Copy result to "out"
     /*memcpy(out, src, n * sizeof(uint32_t));*/
-    // TODO: In ra mảng listLocalHist
-    for(int i=0; i < sizeHist; i++){
-        printf("%d ", listLocalHist[i]);
-    }
     // Free memories
     free(localHist);
     free(listLocalHist);
@@ -189,7 +205,7 @@ void sort(const uint32_t * in, int n,
     if (useDevice == false)
     {
     	printf("\nRadix sort by host\n");
-        sortByHost(in, n, out, nBits, 4);
+        sortByHost(in, n, out, nBits, 2);
     }
     else // use device
     {
