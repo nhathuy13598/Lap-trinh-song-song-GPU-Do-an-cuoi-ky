@@ -92,8 +92,8 @@ void sortByHost(const uint32_t * in, int n,
     // --> we create a copy of this data and assign "src" to the address of this copy
     uint32_t * src = (uint32_t *)malloc(n * sizeof(uint32_t));
     memcpy(src, in, n * sizeof(uint32_t));
-    /*uint32_t * originalSrc = src; // Use originalSrc to free memory later
-    uint32_t * dst = out;*/
+    //uint32_t * originalSrc = src; // Use originalSrc to free memory later
+    uint32_t * dst = out;
 
     
     for (int bit = 0; bit < sizeof(uint32_t) * 8; bit += nBits)
@@ -133,11 +133,11 @@ void sortByHost(const uint32_t * in, int n,
             }
         }
         // [DEBUG]: In ra mảng listLocalHist
-        printf("Mang listLocalHist: ");
+        /*printf("Mang listLocalHist: ");
         for(int i=0; i < sizeHist; i++){
             printf("%d ", listLocalHist[i]);
         }
-        printf("\n");
+        printf("\n");*/
 
         // TODO: Với mảng 2 chiều mà mỗi dòng là local hist của một block,
         // thực hiện exclusive scan trên mảng một chiều gồm các cột
@@ -153,11 +153,11 @@ void sortByHost(const uint32_t * in, int n,
             }
         }
         // [DEBUG]: In ra mảng listLocalHistConvert
-        printf("Mang listLocalHistConvert: ");
+        /*printf("Mang listLocalHistConvert: ");
         for(int i=0; i<sizeHist; i++){
             printf("%d ", listLocalHistConvert[i]);
         } 
-        printf("\n");
+        printf("\n");*/
 
         // Tính histScan (exculusive scan) cho mảng listLocalHistConvert
         histScan[0] = 0;
@@ -166,11 +166,11 @@ void sortByHost(const uint32_t * in, int n,
         }
 
         // [DEBUG]: In ra mảng histScan
-        printf("Mang histScan: ");
+        /*printf("Mang histScan: ");
         for(int i=0; i<sizeHist; i++){
             printf("%d ", histScan[i]);
         }
-        printf("\n");
+        printf("\n");*/
         
         // TODO: Mỗi block thực hiện scatter phần dữ liệu của mình xuống
         // mảng output dựa vào kết quả scan ở trên
@@ -197,11 +197,11 @@ void sortByHost(const uint32_t * in, int n,
                 blockData[j] = src[j + i*blockSize];
             }
             // [DEBUG]: In blockData
-            printf("Mang blockData: ");
+            /*printf("Mang blockData: ");
             for(int j=0; j<blockSize; j++){
                 printf("%d ", blockData[j]);
             }
-            printf("\n");
+            printf("\n");*/
             // Sort dữ liệu bằng Bubble Sort
             int sizeBlockData = blockSize;
             if (i == blockDimension - 1){
@@ -218,11 +218,11 @@ void sortByHost(const uint32_t * in, int n,
             }
 
             // [DEBUG]: In blockData đã sắp xếp
-            printf("Mang blockData da sap xep: ");
+            /*printf("Mang blockData da sap xep: ");
             for(int j=0; j<blockSize; j++){
                 printf("%d ", blockData[j]);
             }
-            printf("\n");
+            printf("\n");*/
     
             // Chép dữ liệu vào sortBlockData
             for(int j=0; j<blockSize; j++){
@@ -252,11 +252,11 @@ void sortByHost(const uint32_t * in, int n,
             }
         }
         // [DEBUG]: In ra mảng beginIndex
-        printf("Mang beginIndex: ");
+        /*printf("Mang beginIndex: ");
         for(int index=0; index<n; index++){
             printf("%d ", beginIndex[index]);
         }
-        printf("\n");
+        printf("\n");*/
         // Tính số lượng phần tử trước mình mà giống mình
         int *eleBefore = (int*)malloc(n * sizeof(int));
         for(int blIdx=0; blIdx<blockDimension; blIdx++){
@@ -276,6 +276,24 @@ void sortByHost(const uint32_t * in, int n,
         }
         printf("\n");
         // Tính rank và scatter
+        for(int index=0; index<n; index++){
+            int blIdx = (index + 1) / blockSize;
+            printf("Block index la %d\n",blIdx);
+            int bin = (sortBlockData[index] >> bit) & (nBins - 1);
+            printf("Bin la %d\n", bin);
+            printf("histScan tai do la %d\n",histScan[bin*blockDimension + blIdx]);
+            printf("So luong phan tu truoc no la %d\n", eleBefore[index]);
+            int rank = histScan[bin*blockDimension + blIdx] + eleBefore[index];
+            printf("Rank la %d\n", rank);
+            dst[rank] = sortBlockData[index];
+        }
+        
+        // [DEBUG]: In ra mảng dst
+        printf("Mang dst sau khi da sap xep: ");
+        for (int index=0; index<n; index++){
+            printf("%d ", dst[index]);
+        }
+        printf("\n");
     	// TODO: Swap "src" and "dst"
         /*uint32_t * temp = src;
         src = dst;
@@ -388,7 +406,7 @@ int main(int argc, char ** argv)
     for (int i = 0; i < n; i++)
         //in[i] = rand();
         in[i] = rand() % 8;
-    uint32_t temp[10] = {1,2,2,2,3,5,7,7,7,7};
+    uint32_t temp[10] = {3,2,5,7,9,9,8,8,1,1};
     memcpy(in, temp, n * sizeof(uint32_t));
     //printArray(in, n);
 
