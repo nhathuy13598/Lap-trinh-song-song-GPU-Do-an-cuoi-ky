@@ -67,8 +67,13 @@ void sortByHost(const uint32_t * in, int n,
                 int blockSize)
 {
     int nBins = 1 << nBits; // 2^nBits
-    int * hist = (int *)malloc(nBins * sizeof(int));
-    int * histScan = (int *)malloc(nBins * sizeof(int));
+    int * localHist = (int *)malloc(nBins * sizeof(int));           // Khởi tạo Local Histogram cho từng block
+
+    // Tạo mảng chứa các localHist
+    int sizeHist = nBins * ((n - 1) / blockSize + 1);               // Tính kích thước của mảng listLocalHist
+                                                                    // sizeHist = Số bin x Số lượng block
+    //printf("Kich thuoc cua mang listLocalHist: %d\n", sizeHist);
+    int * listLocalHist = (int *)malloc(sizeHist * sizeof(int));    // Khởi tạo listLocalHist
 
     // In each counting sort, we sort data in "src" and write result to "dst"
     // Then, we swap these 2 pointers and go to the next counting sort
@@ -77,30 +82,52 @@ void sortByHost(const uint32_t * in, int n,
     // --> we create a copy of this data and assign "src" to the address of this copy
     uint32_t * src = (uint32_t *)malloc(n * sizeof(uint32_t));
     memcpy(src, in, n * sizeof(uint32_t));
-    uint32_t * originalSrc = src; // Use originalSrc to free memory later
-    uint32_t * dst = out;
+    /*uint32_t * originalSrc = src; // Use originalSrc to free memory later
+    uint32_t * dst = out;*/
 
-    // Loop from LSD (Least Significant Digit) to MSD (Most Significant Digit)
-    // (Each digit consists of nBits bits)
-	// In each loop, sort elements according to the current digit 
-	// (using STABLE counting sort)
+    
     for (int bit = 0; bit < sizeof(uint32_t) * 8; bit += nBits)
     {
         // TODO: Mỗi block tính local histogram của digit-đang-xét trên phần 
-        // dữ liệu của mình
-        memset(hist, 0, nBins * sizeof(int));
-        for (int i = 0; i < n; i++)
-        {
+        // dữ liệu của mình và chép vào mảng listLocalHist
+
+        //printf("So luong phan tu mang la: %d\n", n);
+        //printf("Kich thuoc blockSize la: %d\n", blockSize);
+        memset(localHist, 0, nBins * sizeof(int));
+        int count = 0;
+        for(int i=0; i<n; i++){
             int bin = (src[i] >> bit) & (nBins - 1);
-            hist[bin]++;
+            localHist[bin]++;
+            count++;
+            if (count == blockSize || i == n - 1){                    // Kiểm tra xem ta đã duyệt được blockSize phần tử hay chưa
+                count = 0;
+                
+                // TODO: Ta in ra mảng localHist
+                /*printf("Mang localHist: ");
+                for(int j=0; j < nBins; j++){
+                    printf("%d ", localHist[j]);
+                }
+                printf("\n");*/
+
+                // TODO: Chép dữ liệu vào listLocalHist
+                int blockIndex = (i == n - 1)? (n - 1) / blockSize : (i + 1) / blockSize - 1;       // Tính xem đây là block thứ mấy
+                //printf("BlockIndex la: %d\n", blockIndex);
+                int index = blockIndex * nBins;                                                     // Tính chỉ số bắt đầu trong mảng listLocalHist
+                //printf("Index trong mang listLocalHist: %d\n", index);
+                for (int j = 0; j < nBins; j++ ){
+                    listLocalHist[index++] =  localHist[j];
+                }
+
+                // TODO: Set lại mảng localHist
+                memset(localHist, 0, nBins * sizeof(int));
+            }
         }
 
         // TODO: Với mảng 2 chiều mà mỗi dòng là local hist của một block,
         // thực hiện exclusive scan trên mảng một chiều gồm các cột
         // nối lại với nhau (Xem slide để hiểu rõ)
-        histScan[0] = 0;
-        for (int bin = 1; bin < nBins; bin++)
-            histScan[bin] = histScan[bin - 1] + hist[bin - 1];
+       
+
 
         // TODO: Mỗi block thực hiện scatter phần dữ liệu của mình xuống
         // mảng output dựa vào kết quả scan ở trên
@@ -112,25 +139,26 @@ void sortByHost(const uint32_t * in, int n,
         //          trong block có digit-đang-xét bằng digit-đang-xét của phần tử mà
         //          mình phụ trách
         //      ▪ Mỗi thread trong block tính rank và thực hiện scatter
-        for (int i = 0; i < n; i++)
-        {
-            int bin = (src[i] >> bit) & (nBins - 1);
-            dst[histScan[bin]] = src[i];
-            histScan[bin]++;
-        }    
+        
 
     	// TODO: Swap "src" and "dst"
-        uint32_t * temp = src;
+        /*uint32_t * temp = src;
         src = dst;
-        dst = temp; 
+        dst = temp;*/ 
+
+        break;  // Xóa dòng này sau khi test
     }
 
     // TODO: Copy result to "out"
-    memcpy(out, src, n * sizeof(uint32_t));
+    /*memcpy(out, src, n * sizeof(uint32_t));*/
+    // TODO: In ra mảng listLocalHist
+    for(int i=0; i < sizeHist; i++){
+        printf("%d ", listLocalHist[i]);
+    }
     // Free memories
-    free(hist);
-    free(histScan);
-    free(originalSrc);
+    free(localHist);
+    free(listLocalHist);
+    free(src);
 }
 
 // (Partially) Parallel radix sort: implement parallel histogram and parallel scan in counting sort
@@ -161,7 +189,7 @@ void sort(const uint32_t * in, int n,
     if (useDevice == false)
     {
     	printf("\nRadix sort by host\n");
-        sortByHost(in, n, out, nBits);
+        sortByHost(in, n, out, nBits, 4);
     }
     else // use device
     {
@@ -216,7 +244,7 @@ int main(int argc, char ** argv)
 
     // SET UP INPUT SIZE
     int n = (1 << 24) + 1;
-    //n = 10;
+    n = 8;
     printf("\nInput size: %d\n", n);
 
     // ALLOCATE MEMORIES
@@ -227,11 +255,14 @@ int main(int argc, char ** argv)
 
     // SET UP INPUT DATA
     for (int i = 0; i < n; i++)
-        in[i] = rand();
-    //printArray(in, n);
+        //in[i] = rand();
+        in[i] = rand() % 8;
+    printf("Mang input la: ");
+    printArray(in, n);
 
     // SET UP NBITS
-    int nBits = 4; // Default
+    //int nBits = 4; // Default
+    int nBits = 1;
     if (argc > 1)
         nBits = atoi(argv[1]);
     printf("\nNum bits per digit: %d\n", nBits);
