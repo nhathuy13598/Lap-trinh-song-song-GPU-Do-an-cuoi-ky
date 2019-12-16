@@ -282,7 +282,7 @@ void sortByHost(const uint32_t * in, int n,
         // Tính rank và scatter
         for(int index=0; index<n; index++){
             printf("\n");
-            int blIdx = (index + 1) / blockSize;
+            int blIdx = index / blockSize;
             printf("Block index la %d\n",blIdx);
             int bin = (sortBlockData[index] >> bit) & (nBins - 1);
             printf("Bin la %d\n", bin);
