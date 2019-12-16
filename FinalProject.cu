@@ -4,6 +4,9 @@
 #include <thrust/copy.h>
 #include <thrust/sort.h>
 
+#define LIBRARY 0
+#define HOST 1
+#define DEVICE 2
 #define CHECK(call)                                                            \
 {                                                                              \
     const cudaError_t error = call;                                            \
@@ -344,9 +347,9 @@ void sortByHost(const uint32_t * in, int n,
 // Because we may want different block sizes for diffrent kernels:
 //   blockSizes[0] for the histogram kernel
 //   blockSizes[1] for the scan kernel
-void sortByDevice(const uint32_t * in, int n, 
+void sortByLibrary(const uint32_t * in, int n, 
         uint32_t * out, 
-        int nBits, int * blockSizes)
+        int nBits)
 {
     // TODO
 	thrust::device_vector<uint32_t> dv_out(in, in + n);
@@ -355,23 +358,30 @@ void sortByDevice(const uint32_t * in, int n,
 }
 
 // Radix sort
+/*
+    @type   0 tương ứng với dùng thư viện
+            1 tương ứng với dùng host
+            còn lại tương ứng với dùng device (tự code)
+*/
 void sort(const uint32_t * in, int n, 
         uint32_t * out, 
         int nBits,
-        bool useDevice=false, int * blockSizes=NULL)
+        int type=0, int * blockSizes=NULL)
 {
     GpuTimer timer; 
     timer.Start();
-
-    if (useDevice == false)
+    if (type == 0){
+        printf("\nRadix sort by library\n");
+        sortByLibrary(in, n, out, nBits);
+    }
+    else if (type == 1)
     {
     	printf("\nRadix sort by host\n");
         sortByHost(in, n, out, nBits, 32);
     }
     else // use device
     {
-    	printf("\nRadix sort by device\n");
-        sortByDevice(in, n, out, nBits, blockSizes);
+    	
     }
 
     timer.Stop();
@@ -427,20 +437,16 @@ int main(int argc, char ** argv)
     // ALLOCATE MEMORIES
     size_t bytes = n * sizeof(uint32_t);
     uint32_t * in = (uint32_t *)malloc(bytes);
-    uint32_t * out = (uint32_t *)malloc(bytes); // Device result
-    uint32_t * correctOut = (uint32_t *)malloc(bytes); // Host result
+    uint32_t * out = (uint32_t *)malloc(bytes);             // Device result
+    uint32_t * correctOut = (uint32_t *)malloc(bytes);      // Host result
 
     // SET UP INPUT DATA
     for (int i = 0; i < n; i++)
         in[i] = rand();
-        //in[i] = rand() % 8;
-    //uint32_t temp[10] = {3,2,5,7,9,9,8,8,1,1};
-    //memcpy(in, temp, n * sizeof(uint32_t));
     //printArray(in, n);
 
     // SET UP NBITS
     int nBits = 4; // Default
-    //int nBits = 2;
     if (argc > 1)
         nBits = atoi(argv[1]);
     printf("\nNum bits per digit: %d\n", nBits);
@@ -454,12 +460,11 @@ int main(int argc, char ** argv)
     }
     printf("\nHist block size: %d, scan block size: %d\n", blockSizes[0], blockSizes[1]);
 
-    // SORT BY DEVICE
-    sort(in, n, correctOut, nBits, true, blockSizes);
-    //checkCorrectness(out, correctOut, n);
+    // SORT BY LIBRARY
+    sort(in, n, correctOut, nBits, LIBRARY);
 
     // SORT BY HOST
-    sort(in, n, out, nBits);
+    sort(in, n, out, nBits, HOST);
     checkCorrectness(out, correctOut, n);
     //printArray(correctOut, n);
     
