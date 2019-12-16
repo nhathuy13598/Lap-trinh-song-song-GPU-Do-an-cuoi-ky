@@ -75,6 +75,9 @@ void sortByHost(const uint32_t * in, int n,
     //printf("Kich thuoc cua mang listLocalHist: %d\n", sizeHist);
     int * listLocalHist = (int *)malloc(sizeHist * sizeof(int));    // Khởi tạo listLocalHist
 
+    // Tạo mảng histScan
+    int * histScan = (int*) malloc(sizeHist * sizeof(int));
+
     // In each counting sort, we sort data in "src" and write result to "dst"
     // Then, we swap these 2 pointers and go to the next counting sort
     // At first, we assign "src = in" and "dest = out"
@@ -149,6 +152,18 @@ void sortByHost(const uint32_t * in, int n,
         } 
         printf("\n");
 
+        // Tính histScan (exculusive scan) cho mảng listLocalHistConvert
+        histScan[0] = 0;
+        for(int i=1; i<sizeHist; i++){                                                      
+            histScan[i] = histScan[i - 1] + listLocalHistConvert[i - 1];
+        }
+
+        // [DEBUG]: In ra mảng histScan
+        printf("Mang histScan: ");
+        for(int i=0; i<sizeHist; i++){
+            printf("%d ", histScan[i]);
+        }
+        printf("\n");
         // TODO: Mỗi block thực hiện scatter phần dữ liệu của mình xuống
         // mảng output dựa vào kết quả scan ở trên
         //      ▪ Mỗi block sắp xếp cục bộ phần dữ liệu của mình theo digit đang
