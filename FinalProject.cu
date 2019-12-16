@@ -66,6 +66,13 @@ void sortByHost(const uint32_t * in, int n,
                 int nBits,
                 int blockSize)
 {
+    // [DEBUG]: In mảng input
+    printf("Mang input: ");
+    for(int i=0; i<n; i++){
+        printf("%d ", in[i]);
+    }
+    printf("\n");
+
     int nBins = 1 << nBits; // 2^nBits
     int * localHist = (int *)malloc(nBins * sizeof(int));           // Khởi tạo Local Histogram cho từng block
 
@@ -106,17 +113,17 @@ void sortByHost(const uint32_t * in, int n,
                 count = 0;
                 
                 // [DEBUG]: Ta in ra mảng localHist
-                printf("Mang localHist: ");
+                /*printf("Mang localHist: ");
                 for(int j=0; j < nBins; j++){
                     printf("%d ", localHist[j]);
                 }
-                printf("\n");
+                printf("\n");*/
 
                 // TODO: Chép dữ liệu vào listLocalHist
                 int blockIndex = (i == n - 1)? (n - 1) / blockSize : (i + 1) / blockSize - 1;       // Tính xem đây là block thứ mấy
-                printf("BlockIndex la: %d\n", blockIndex);
+                //printf("BlockIndex la: %d\n", blockIndex);
                 int index = blockIndex * nBins;                                                     // Tính chỉ số bắt đầu trong mảng listLocalHist
-                printf("Index trong mang listLocalHist: %d\n", index);
+                //printf("Index trong mang listLocalHist: %d\n", index);
                 for (int j = 0; j < nBins; j++ ){
                     listLocalHist[index++] =  localHist[j];
                 }
@@ -164,6 +171,7 @@ void sortByHost(const uint32_t * in, int n,
             printf("%d ", histScan[i]);
         }
         printf("\n");
+        
         // TODO: Mỗi block thực hiện scatter phần dữ liệu của mình xuống
         // mảng output dựa vào kết quả scan ở trên
         //      ▪ Mỗi block sắp xếp cục bộ phần dữ liệu của mình theo digit đang
@@ -175,7 +183,62 @@ void sortByHost(const uint32_t * in, int n,
         //          mình phụ trách
         //      ▪ Mỗi thread trong block tính rank và thực hiện scatter
         
+        // Sắp xếp các data trong block tăng dần theo Bubble Sort
+        int *sortBlockData = (int*)malloc(n * sizeof(uint32_t));
+        int *blockData = (int*)malloc(blockSize * sizeof(uint32_t));
+        for(int i=0; i<blockDimension; i++){                            // Duyệt từng block
+            // Sao chép dữ liệu cần sort
+            // Chú ý block cuối có thể chứa rác
+            for(int j=0; j<blockSize; j++){
+                if (i == blockDimension - 1){
+                    if (j >= n)
+                        break;
+                }                           
+                blockData[j] = src[j + i*blockSize];
+            }
+            // [DEBUG]: In blockData
+            printf("Mang blockData: ");
+            for(int j=0; j<blockSize; j++){
+                printf("%d ", blockData[j]);
+            }
+            printf("\n");
+            // Sort dữ liệu bằng Bubble Sort
+            int sizeBlockData = blockSize;
+            if (i == blockDimension - 1){
+                sizeBlockData = n % blockSize;
+            }
+            for(int k=sizeBlockData-1; k>=0; k--){
+                for(int j=0; j<k; j++){
+                    if(blockData[j] > blockData[j+1]){
+                        uint32_t temp = blockData[j];
+                        blockData[j] = blockData[j + 1];
+                        blockData[j + 1] = temp;
+                    }
+                }
+            }
 
+            // [DEBUG]: In blockData đã sắp xếp
+            printf("Mang blockData da sap xep: ");
+            for(int j=0; j<blockSize; j++){
+                printf("%d ", blockData[j]);
+            }
+            printf("\n");
+    
+            // Chép dữ liệu vào sortBlockData
+            for(int j=0; j<blockSize; j++){
+                sortBlockData[j + i*blockSize] = blockData[j];
+            }
+        }
+
+        // [DEBUG]: In ra mảng sortBlockData
+        printf("Mang da duoc sap xep theo block: ");
+        for(int i=0; i<n; i++){
+            printf("%d ", sortBlockData[i]);
+        }
+        printf("\n");
+        // Tính chỉ số bắt đầu trong block
+        // Tính số lượng phần tử trước mình mà giống mình
+        // Tính rank và scatter
     	// TODO: Swap "src" and "dst"
         /*uint32_t * temp = src;
         src = dst;
@@ -220,7 +283,7 @@ void sort(const uint32_t * in, int n,
     if (useDevice == false)
     {
     	printf("\nRadix sort by host\n");
-        sortByHost(in, n, out, nBits, 2);
+        sortByHost(in, n, out, nBits, 4);
     }
     else // use device
     {
@@ -275,7 +338,7 @@ int main(int argc, char ** argv)
 
     // SET UP INPUT SIZE
     int n = (1 << 24) + 1;
-    n = 8;
+    n = 10;
     printf("\nInput size: %d\n", n);
 
     // ALLOCATE MEMORIES
@@ -288,8 +351,7 @@ int main(int argc, char ** argv)
     for (int i = 0; i < n; i++)
         //in[i] = rand();
         in[i] = rand() % 8;
-    printf("Mang input la: ");
-    printArray(in, n);
+    //printArray(in, n);
 
     // SET UP NBITS
     //int nBits = 4; // Default
