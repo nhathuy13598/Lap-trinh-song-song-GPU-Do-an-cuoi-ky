@@ -101,8 +101,8 @@ void sortByHost(const uint32_t * in, int n,
         // TODO: Mỗi block tính local histogram của digit-đang-xét trên phần 
         // dữ liệu của mình và chép vào mảng listLocalHist
 
-        printf("So luong phan tu mang la: %d\n", n);
-        printf("Kich thuoc blockSize la: %d\n", blockSize);
+        //printf("So luong phan tu mang la: %d\n", n);
+        //printf("Kich thuoc blockSize la: %d\n", blockSize);
         memset(localHist, 0, nBins * sizeof(int));
         int count = 0;
         for(int i=0; i<n; i++){
@@ -166,11 +166,11 @@ void sortByHost(const uint32_t * in, int n,
         }
 
         // [DEBUG]: In ra mảng histScan
-        /*printf("Mang histScan: ");
+        printf("Mang histScan: ");
         for(int i=0; i<sizeHist; i++){
             printf("%d ", histScan[i]);
         }
-        printf("\n");*/
+        printf("\n");
         
         // TODO: Mỗi block thực hiện scatter phần dữ liệu của mình xuống
         // mảng output dựa vào kết quả scan ở trên
@@ -209,7 +209,9 @@ void sortByHost(const uint32_t * in, int n,
             }
             for(int k=sizeBlockData-1; k>=0; k--){
                 for(int j=0; j<k; j++){
-                    if(blockData[j] > blockData[j+1]){
+                    int ele1 = (blockData[j] >> bit) & (nBins - 1);
+                    int ele2 = (blockData[j + 1] >> bit) & (nBins - 1);
+                    if(ele1 > ele2){
                         uint32_t temp = blockData[j];
                         blockData[j] = blockData[j + 1];
                         blockData[j + 1] = temp;
@@ -245,18 +247,20 @@ void sortByHost(const uint32_t * in, int n,
                     beginIndex[localIdx + blIdx*blockSize] = 0;
                 }
                 else{
-                    if (sortBlockData[localIdx + blIdx*blockSize] != sortBlockData[localIdx + blIdx*blockSize - 1]){
+                    int ele1 = (sortBlockData[localIdx + blIdx*blockSize] >> bit) & (nBins - 1);
+                    int ele2 = (sortBlockData[localIdx + blIdx*blockSize - 1] >> bit) & (nBins - 1);
+                    if (ele1 != ele2){
                         beginIndex[localIdx + blIdx*blockSize] = 0;
                     }
                 }
             }
         }
         // [DEBUG]: In ra mảng beginIndex
-        /*printf("Mang beginIndex: ");
+        printf("Mang beginIndex: ");
         for(int index=0; index<n; index++){
             printf("%d ", beginIndex[index]);
         }
-        printf("\n");*/
+        printf("\n");
         // Tính số lượng phần tử trước mình mà giống mình
         int *eleBefore = (int*)malloc(n * sizeof(int));
         for(int blIdx=0; blIdx<blockDimension; blIdx++){
@@ -277,6 +281,7 @@ void sortByHost(const uint32_t * in, int n,
         printf("\n");
         // Tính rank và scatter
         for(int index=0; index<n; index++){
+            printf("\n");
             int blIdx = (index + 1) / blockSize;
             printf("Block index la %d\n",blIdx);
             int bin = (sortBlockData[index] >> bit) & (nBins - 1);
