@@ -238,6 +238,7 @@ void sortByHost(const uint32_t * in, int n,
         printf("\n");
         // Tính chỉ số bắt đầu trong block
         int *beginIndex = (int*)malloc(n * sizeof(int));            // Mảng chứa chỉ số bắt đầu trong từng block
+        memset(beginIndex, 1, n*sizeof(int));
         for(int blIdx=0; blIdx<blockDimension; blIdx++){
             for(int localIdx=0; localIdx<blockSize; localIdx++){
                 if (localIdx == 0){
@@ -257,6 +258,23 @@ void sortByHost(const uint32_t * in, int n,
         }
         printf("\n");
         // Tính số lượng phần tử trước mình mà giống mình
+        int *eleBefore = (int*)malloc(n * sizeof(int));
+        for(int blIdx=0; blIdx<blockDimension; blIdx++){
+            for(int index=0; index<blockSize; index++){
+                if(beginIndex[index + blIdx*blockSize] == 0){
+                    eleBefore[index + blIdx*blockSize] = 0;
+                }
+                else{
+                    eleBefore[index + blIdx*blockSize] = eleBefore[index + blIdx*blockSize - 1] + 1;
+                }
+            }
+        }
+        // [DEBUG]: In mảng eleBefore
+        printf("Mang eleBefore: ");
+        for(int i=0; i<n; i++){
+            printf("%d ", eleBefore[i]);
+        }
+        printf("\n");
         // Tính rank và scatter
     	// TODO: Swap "src" and "dst"
         /*uint32_t * temp = src;
@@ -370,6 +388,8 @@ int main(int argc, char ** argv)
     for (int i = 0; i < n; i++)
         //in[i] = rand();
         in[i] = rand() % 8;
+    uint32_t temp[10] = {1,2,2,2,3,5,7,7,7,7};
+    memcpy(in, temp, n * sizeof(uint32_t));
     //printArray(in, n);
 
     // SET UP NBITS
