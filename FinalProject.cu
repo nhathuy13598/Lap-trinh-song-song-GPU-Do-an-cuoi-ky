@@ -237,6 +237,25 @@ void sortByHost(const uint32_t * in, int n,
         }
         printf("\n");
         // Tính chỉ số bắt đầu trong block
+        int *beginIndex = (int*)malloc(n * sizeof(int));            // Mảng chứa chỉ số bắt đầu trong từng block
+        for(int blIdx=0; blIdx<blockDimension; blIdx++){
+            for(int localIdx=0; localIdx<blockSize; localIdx++){
+                if (localIdx == 0){
+                    beginIndex[localIdx + blIdx*blockSize] = 0;
+                }
+                else{
+                    if (sortBlockData[localIdx + blIdx*blockSize] != sortBlockData[localIdx + blIdx*blockSize - 1]){
+                        beginIndex[localIdx + blIdx*blockSize] = 0;
+                    }
+                }
+            }
+        }
+        // [DEBUG]: In ra mảng beginIndex
+        printf("Mang beginIndex: ");
+        for(int index=0; index<n; index++){
+            printf("%d ", beginIndex[index]);
+        }
+        printf("\n");
         // Tính số lượng phần tử trước mình mà giống mình
         // Tính rank và scatter
     	// TODO: Swap "src" and "dst"
