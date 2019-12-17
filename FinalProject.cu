@@ -3,10 +3,6 @@
 #include <thrust/device_vector.h>
 #include <thrust/copy.h>
 #include <thrust/sort.h>
-<<<<<<< HEAD
-=======
-
->>>>>>> 6a2efb4e6a1c9cc246b8bdc76aa62b4154036860
 #define LIBRARY 0
 #define HOST 1
 #define DEVICE 2
