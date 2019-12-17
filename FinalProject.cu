@@ -3,6 +3,10 @@
 #include <thrust/device_vector.h>
 #include <thrust/copy.h>
 #include <thrust/sort.h>
+<<<<<<< HEAD
+=======
+
+>>>>>>> 6a2efb4e6a1c9cc246b8bdc76aa62b4154036860
 #define LIBRARY 0
 #define HOST 1
 #define DEVICE 2
@@ -233,7 +237,6 @@ void sortByHost(const uint32_t * in, int n,
 	free(eleBefore);
 }
 
-
 void sortByLibrary(const uint32_t * in, int n, 
         uint32_t * out, 
         int nBits)
@@ -324,8 +327,8 @@ int main(int argc, char ** argv)
     // ALLOCATE MEMORIES
     size_t bytes = n * sizeof(uint32_t);
     uint32_t * in = (uint32_t *)malloc(bytes);
-    uint32_t * out = (uint32_t *)malloc(bytes); // Device result
-    uint32_t * correctOut = (uint32_t *)malloc(bytes); // Host result
+    uint32_t * out = (uint32_t *)malloc(bytes);             // Device result
+    uint32_t * correctOut = (uint32_t *)malloc(bytes);      // Host result
 
     // SET UP INPUT DATA
     for (int i = 0; i < n; i++)
@@ -337,7 +340,6 @@ int main(int argc, char ** argv)
 
     // SET UP NBITS
     int nBits = 4; // Default
-    //int nBits = 2;
     if (argc > 1)
         nBits = atoi(argv[1]);
     printf("\nNum bits per digit: %d\n", nBits);
