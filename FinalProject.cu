@@ -3,7 +3,9 @@
 #include <thrust/device_vector.h>
 #include <thrust/copy.h>
 #include <thrust/sort.h>
-
+#define LIBRARY 0
+#define HOST 1
+#define DEVICE 2
 #define CHECK(call)                                                            \
 {                                                                              \
     const cudaError_t error = call;                                            \
@@ -66,287 +68,175 @@ void sortByHost(const uint32_t * in, int n,
                 int nBits,
                 int blockSize)
 {
-    // [DEBUG]: In mảng input
-    /*printf("Mang input: ");
-    for(int i=0; i<n; i++){
-        printf("%d ", in[i]);
-    }
-    printf("\n");*/
+    int nBins = 1 << nBits;												// Số lượng bin là 2^nBits
+	
+	
 
-    int nBins = 1 << nBits; // 2^nBits
-    int * localHist = (int *)malloc(nBins * sizeof(int));           // Khởi tạo Local Histogram cho từng block
+	uint32_t * src = (uint32_t *)malloc(n * sizeof(uint32_t));			// Biến tạm để lưu trữ dữ liệu input
+	memcpy(src, in, n * sizeof(uint32_t));								// Sao chép dữ liệu từ in vào src
+	uint32_t * originalSrc = src;										// Use originalSrc to free memory later
+	uint32_t * dst = out;												// Mảng kết quả
 
-    // Tạo mảng chứa các localHist
-    int sizeHist = nBins * ((n - 1) / blockSize + 1);               // Tính kích thước của mảng listLocalHist
-                                                                    // sizeHist = Số bin x Số lượng block
-    //printf("Kich thuoc cua mang listLocalHist: %d\n", sizeHist);
-    int * listLocalHist = (int *)malloc(sizeHist * sizeof(int));    // Khởi tạo listLocalHist
+	// [TODO]: Khởi tạo các mảng cần thiết khi chạy
+	int sizeHist = nBins * ((n - 1) / blockSize + 1);					// Tính kích thước của mảng listLocalHist sizeHist = Số bin x Số lượng block
+	int *listLocalHist = (int *)malloc(sizeHist * sizeof(int));			// Mảng chứa các localHist
+	int *listLocalHistConvert = (int*)malloc(sizeHist * sizeof(int));	// Mảng chuyển đổi của listLocalHistConvert
 
-    // Tạo mảng histScan
-    int * histScan = (int*) malloc(sizeHist * sizeof(int));
+	int * histScan = (int*)malloc(sizeHist * sizeof(int));				// Mảng exclusive scan của listLocalHistConvert
 
-    // In each counting sort, we sort data in "src" and write result to "dst"
-    // Then, we swap these 2 pointers and go to the next counting sort
-    // At first, we assign "src = in" and "dest = out"
-    // However, the data pointed by "in" is read-only 
-    // --> we create a copy of this data and assign "src" to the address of this copy
-    uint32_t * src = (uint32_t *)malloc(n * sizeof(uint32_t));
-    memcpy(src, in, n * sizeof(uint32_t));
-    uint32_t * originalSrc = src; // Use originalSrc to free memory later
-    uint32_t * dst = out;
+	int *eleBefore = (int*)malloc(n * sizeof(int));						// Mảng chứa chỉ số phân tử đứng trước và bằng nó trong từng block
 
-    // [TODO]: Khởi tạo các mảng cần thiết khi chạy
-    int *listLocalHistConvert = (int*)malloc(sizeHist * sizeof(int));
-    int *sortBlockData = (int*)malloc(n * sizeof(uint32_t));
-    int *blockData = (int*)malloc(blockSize * sizeof(uint32_t));
-    int *beginIndex = (int*)malloc(n * sizeof(int));            // Mảng chứa chỉ số bắt đầu trong từng block
-    int *eleBefore = (int*)malloc(n * sizeof(int));
+	int numBlock = (n - 1) / blockSize + 1;								// Số lượng các block cần thiết
+	for (int bit = 0; bit < sizeof(uint32_t) * 8; bit += nBits)
+	{
+		// TODO: Mỗi block tính local histogram của digit-đang-xét trên phần 
+		// dữ liệu của mình và chép vào mảng listLocalHist
+		memset(listLocalHist, 0, sizeHist * sizeof(int));					// Gán mảng listLocalHist bằng 0
+		for (int blkIdx = 0; blkIdx < numBlock; blkIdx++) {
+			int start = blkIdx * blockSize;									// Chỉ số bắt đầu của block
+			int end = (blkIdx == numBlock - 1) ? n : start + blockSize;		// Chỉ số kết thúc của block
+			for (int index = start; index < end; index++) {					// Duyệt tất cả phần tử của block
+				int bin = (src[index] >> bit) & (nBins - 1);
+				listLocalHist[blkIdx*nBins + bin]++;
+			}
+		}
 
-    for (int bit = 0; bit < sizeof(uint32_t) * 8; bit += nBits)
-    {
-        // TODO: Mỗi block tính local histogram của digit-đang-xét trên phần 
-        // dữ liệu của mình và chép vào mảng listLocalHist
+		// [DEBUG]: In ra mảng listLocalHist
+		/*printf("Mang listLocalHist: ");
+		for(int i=0; i < sizeHist; i++){
+			printf("%d ", listLocalHist[i]);
+		}
+		printf("\n");*/
 
-        //printf("So luong phan tu mang la: %d\n", n);
-        //printf("Kich thuoc blockSize la: %d\n", blockSize);
-        memset(localHist, 0, nBins * sizeof(int));
-        int count = 0;
-        for(int i=0; i<n; i++){
-            int bin = (src[i] >> bit) & (nBins - 1);
-            localHist[bin]++;
-            count++;
-            if (count == blockSize || i == n - 1){                    // Kiểm tra xem ta đã duyệt được blockSize phần tử hay chưa
-                count = 0;
-                
-                // [DEBUG]: Ta in ra mảng localHist
-                /*printf("Mang localHist: ");
-                for(int j=0; j < nBins; j++){
-                    printf("%d ", localHist[j]);
-                }
-                printf("\n");*/
+		// TODO: Với mảng 2 chiều mà mỗi dòng là local hist của một block,
+		// thực hiện exclusive scan trên mảng một chiều gồm các cột
+		// nối lại với nhau (Xem slide để hiểu rõ)
+		int indexLLHC = 0;                                                                  // Chỉ số trong mảng listLocalHistConvert
+		for (int i = 0; i < nBins; i++) {                                                   // Duyệt tất cả các phần tử trong một localHist
+			for (int j = 0; j < numBlock; j++) {											// Duyệt tất cả các localHist
+				listLocalHistConvert[indexLLHC++] = listLocalHist[i + j * nBins];           // i là chỉ số bin trong localHist, j * nBins là chỉ số của block
+			}
+		}
+		// [DEBUG]: In ra mảng listLocalHistConvert
+		/*printf("Mang listLocalHistConvert: ");
+		for(int i=0; i<sizeHist; i++){
+			printf("%d ", listLocalHistConvert[i]);
+		}
+		printf("\n");*/
 
-                // TODO: Chép dữ liệu vào listLocalHist
-                int blockIndex = (i == n - 1)? (n - 1) / blockSize : (i + 1) / blockSize - 1;       // Tính xem đây là block thứ mấy
-                //printf("BlockIndex la: %d\n", blockIndex);
-                int index = blockIndex * nBins;                                                     // Tính chỉ số bắt đầu trong mảng listLocalHist
-                //printf("Index trong mang listLocalHist: %d\n", index);
-                for (int j = 0; j < nBins; j++ ){
-                    listLocalHist[index++] =  localHist[j];
-                }
+		// Tính histScan (exculusive scan) cho mảng listLocalHistConvert
+		histScan[0] = 0;
+		for (int i = 1; i < sizeHist; i++) {
+			histScan[i] = histScan[i - 1] + listLocalHistConvert[i - 1];
+		}
 
-                // TODO: Set lại mảng localHist
-                memset(localHist, 0, nBins * sizeof(int));
-            }
-        }
-        // [DEBUG]: In ra mảng listLocalHist
-        /*printf("Mang listLocalHist: ");
-        for(int i=0; i < sizeHist; i++){
-            printf("%d ", listLocalHist[i]);
-        }
-        printf("\n");*/
+		// [DEBUG]: In ra mảng histScan
+		/*printf("Mang histScan: ");
+		for(int i=0; i<sizeHist; i++){
+			printf("%d ", histScan[i]);
+		}
+		printf("\n");*/
 
-        // TODO: Với mảng 2 chiều mà mỗi dòng là local hist của một block,
-        // thực hiện exclusive scan trên mảng một chiều gồm các cột
-        // nối lại với nhau (Xem slide để hiểu rõ)
-        //int *listLocalHistConvert = (int*)malloc(sizeHist * sizeof(int));
-        int blockDimension = (n - 1) / blockSize + 1;
-        int indexLLHC = 0;                                                                  // Chỉ số trong mảng listLocalHistConvert
-        for(int i=0; i<nBins; i++){                                                         // Duyệt tất cả các phần tử trong một localHist
+		// TODO: Mỗi block thực hiện scatter phần dữ liệu của mình xuống
+		// mảng output dựa vào kết quả scan ở trên
+		//      ▪ Mỗi block sắp xếp cục bộ phần dữ liệu của mình theo digit đang
+		//          xét (dùng Radix Sort với k=1 bit và làm trên SMEM)
+		//      ▪ Mỗi block tính chỉ số bắt đầu (xét cục bộ trong block) của mỗi giá
+		//          trị digit
+		//      ▪ Mỗi thread trong block tính số lượng phần tử đứng trước mình
+		//          trong block có digit-đang-xét bằng digit-đang-xét của phần tử mà
+		//          mình phụ trách
+		//      ▪ Mỗi thread trong block tính rank và thực hiện scatter
 
-            for(int j=0; j < blockDimension; j++){                                          // Duyệt tất cả các localHist
-                listLocalHistConvert[indexLLHC++] = listLocalHist[i + j * nBins];           // i là chỉ số bin trong localHist
-                                                                                            // j * nBins là chỉ số của block
-            }
-        }
-        // [DEBUG]: In ra mảng listLocalHistConvert
-        /*printf("Mang listLocalHistConvert: ");
-        for(int i=0; i<sizeHist; i++){
-            printf("%d ", listLocalHistConvert[i]);
-        } 
-        printf("\n");*/
+		// Sắp xếp các data trong block tăng dần theo Bubble Sort
+		// Ta sẽ thực hiện luôn trên mảng src để tiết kiệm bộ nhớ
+		for (int blkIdx = 0; blkIdx < numBlock; blkIdx++) {					// Duyệt từng block
+			int start = blkIdx * blockSize;									// Chỉ số bắt đầu của block
+			int end = (blkIdx == numBlock - 1) ? n : start + blockSize;		// Chỉ số kết thúc của block
+			for (int x = end - start; x >= 1; x--) {						// Ta tưởng tượng đây là sắp xếp mảng có end - start phần tử
+				for (int y = 0; y < x - 1; y++) {
+					int first = (src[blkIdx*blockSize + y] >> bit) & (nBins - 1);
+					int second = (src[blkIdx*blockSize + y + 1] >> bit) & (nBins - 1);
+					if (first > second) {
+						uint32_t temp = src[blkIdx*blockSize + y];
+						src[blkIdx*blockSize + y] = src[blkIdx*blockSize + y + 1];
+						src[blkIdx*blockSize + y + 1] = temp;
+					}
+				}
+			}
+		}
 
-        // Tính histScan (exculusive scan) cho mảng listLocalHistConvert
-        histScan[0] = 0;
-        for(int i=1; i<sizeHist; i++){                                                      
-            histScan[i] = histScan[i - 1] + listLocalHistConvert[i - 1];
-        }
+		// [DEBUG]: In ra mảng sortBlockData
+		/*printf("Mang da duoc sap xep theo block: ");
+		for(int i=0; i<n; i++){
+			printf("%d ", src[i]);
+		}
+		printf("\n");*/
 
-        // [DEBUG]: In ra mảng histScan
-        /*printf("Mang histScan: ");
-        for(int i=0; i<sizeHist; i++){
-            printf("%d ", histScan[i]);
-        }
-        printf("\n");*/
-        
-        // TODO: Mỗi block thực hiện scatter phần dữ liệu của mình xuống
-        // mảng output dựa vào kết quả scan ở trên
-        //      ▪ Mỗi block sắp xếp cục bộ phần dữ liệu của mình theo digit đang
-        //          xét (dùng Radix Sort với k=1 bit và làm trên SMEM)
-        //      ▪ Mỗi block tính chỉ số bắt đầu (xét cục bộ trong block) của mỗi giá
-        //          trị digit
-        //      ▪ Mỗi thread trong block tính số lượng phần tử đứng trước mình
-        //          trong block có digit-đang-xét bằng digit-đang-xét của phần tử mà
-        //          mình phụ trách
-        //      ▪ Mỗi thread trong block tính rank và thực hiện scatter
-        
-        // Sắp xếp các data trong block tăng dần theo Bubble Sort
-        //int *sortBlockData = (int*)malloc(n * sizeof(uint32_t));
-        //int *blockData = (int*)malloc(blockSize * sizeof(uint32_t));
-        for(int i=0; i<blockDimension; i++){                            // Duyệt từng block
-            // Sao chép dữ liệu cần sort
-            // Chú ý block cuối có thể chứa rác
-            for(int j=0; j<blockSize; j++){
-                if (i == blockDimension - 1){
-                    if (j >= n)
-                        break;
-                }                           
-                blockData[j] = src[j + i*blockSize];
-            }
-            // [DEBUG]: In blockData
-            /*printf("Mang blockData: ");
-            for(int j=0; j<blockSize; j++){
-                printf("%d ", blockData[j]);
-            }
-            printf("\n");*/
-            // Sort dữ liệu bằng Bubble Sort
-            int sizeBlockData = blockSize;
-            if (i == blockDimension - 1){
-                sizeBlockData = n % blockSize;
-            }
-            for(int k=sizeBlockData-1; k>=0; k--){
-                for(int j=0; j<k; j++){
-                    int ele1 = (blockData[j] >> bit) & (nBins - 1);
-                    int ele2 = (blockData[j + 1] >> bit) & (nBins - 1);
-                    if(ele1 > ele2){
-                        uint32_t temp = blockData[j];
-                        blockData[j] = blockData[j + 1];
-                        blockData[j + 1] = temp;
-                    }
-                }
-            }
+		// Tính chỉ số bắt đầu trong block và tính luôn số lượng
+		// phần tử giống nó và đứng trước nó
+		memset(eleBefore, 0, n * sizeof(int));								// Khởi tạo mảng chứa các phần tử đứng trước bằng 0
+		for (int blkIdx = 0; blkIdx < numBlock; blkIdx++) {
+			int start = blkIdx * blockSize;									// Chỉ số bắt đầu của block
+			int end = (blkIdx == numBlock - 1) ? n : start + blockSize;		// Chỉ số kết thúc của block
+			for (int index = 1; index < end - start; index++) {
+				int first = (src[blkIdx * blockSize + index - 1] >> bit) & (nBins - 1);
+				int second = (src[blkIdx * blockSize + index] >> bit) & (nBins - 1);
+				if (first == second) {
+					eleBefore[blkIdx*blockSize + index] = eleBefore[blkIdx*blockSize + index - 1] + 1;
+				}
+			}
+		}
+		// [DEBUG]: In ra mảng eleBefore
+		/*printf("Mang eleBefore: ");
+		for(int index=0; index<n; index++){
+			printf("%d ", eleBefore[index]);
+		}
+		printf("\n");*/
 
-            // [DEBUG]: In blockData đã sắp xếp
-            /*printf("Mang blockData da sap xep: ");
-            for(int j=0; j<blockSize; j++){
-                printf("%d ", blockData[j]);
-            }
-            printf("\n");*/
-    
-            // Chép dữ liệu vào sortBlockData
-            for(int j=0; j<blockSize; j++){
-                sortBlockData[j + i*blockSize] = blockData[j];
-            }
-        }
+		// Tính rank và scatter
+		for (int index = 0; index < n; index++) {
+			int blIdx = index / blockSize;
+			int bin = (src[index] >> bit) & (nBins - 1);
+			int rank = histScan[bin*numBlock + blIdx] + eleBefore[index];
+			dst[rank] = src[index];
+		}
 
-        // [DEBUG]: In ra mảng sortBlockData
-        /*printf("Mang da duoc sap xep theo block: ");
-        for(int i=0; i<n; i++){
-            printf("%d ", sortBlockData[i]);
-        }
-        printf("\n");*/
+		// [DEBUG]: Mang dst
+		/*printf("Mang dst: ");
+		for (int index = 0; index < n; index++) {
+			printf("%d ", dst[index]);
+		}
+		printf("\n");*/
 
-        // Tính chỉ số bắt đầu trong block
-        //int *beginIndex = (int*)malloc(n * sizeof(int));            // Mảng chứa chỉ số bắt đầu trong từng block
-        memset(beginIndex, 1, n*sizeof(int));
-        for(int blIdx=0; blIdx<blockDimension; blIdx++){
-            for(int localIdx=0; localIdx<blockSize; localIdx++){
-                if (localIdx == 0){
-                    beginIndex[localIdx + blIdx*blockSize] = 0;
-                }
-                else{
-                    int ele1 = (sortBlockData[localIdx + blIdx*blockSize] >> bit) & (nBins - 1);
-                    int ele2 = (sortBlockData[localIdx + blIdx*blockSize - 1] >> bit) & (nBins - 1);
-                    if (ele1 != ele2){
-                        beginIndex[localIdx + blIdx*blockSize] = 0;
-                    }
-                }
-            }
-        }
-        // [DEBUG]: In ra mảng beginIndex
-        /*printf("Mang beginIndex: ");
-        for(int index=0; index<n; index++){
-            printf("%d ", beginIndex[index]);
-        }
-        printf("\n");*/
+		// TODO: Swap "src" and "dst"
+		uint32_t * temp = src;
+		src = dst;
+		dst = temp;
 
-        // Tính số lượng phần tử trước mình mà giống mình
-        //int *eleBefore = (int*)malloc(n * sizeof(int));
-        for(int blIdx=0; blIdx<blockDimension; blIdx++){
-            for(int index=0; index<blockSize; index++){
-                if(beginIndex[index + blIdx*blockSize] == 0){
-                    eleBefore[index + blIdx*blockSize] = 0;
-                }
-                else{
-                    eleBefore[index + blIdx*blockSize] = eleBefore[index + blIdx*blockSize - 1] + 1;
-                }
-            }
-        }
-        // [DEBUG]: In mảng eleBefore
-        /*printf("Mang eleBefore: ");
-        for(int i=0; i<n; i++){
-            printf("%d ", eleBefore[i]);
-        }
-        printf("\n");*/
+	}
+	// [DEBUG]: In mảng src
+	/*printf("\nMang ket qua la: ");
+	for(int index=0; index<n; index++){
+		printf("%d ", src[index]);
+	}
+	printf("\n");*/
 
-        // Tính rank và scatter
-        for(int index=0; index<n; index++){
-            //printf("\n");
-            int blIdx = index / blockSize;
-            //printf("Block index la %d\n",blIdx);
-            int bin = (sortBlockData[index] >> bit) & (nBins - 1);
-            //printf("Bin la %d\n", bin);
-            //printf("histScan tai do la %d\n",histScan[bin*blockDimension + blIdx]);
-            //printf("So luong phan tu truoc no la %d\n", eleBefore[index]);
-            int rank = histScan[bin*blockDimension + blIdx] + eleBefore[index];
-            //printf("Rank la %d\n", rank);
-            dst[rank] = sortBlockData[index];
-        }
-        
-        // [DEBUG]: In ra mảng dst
-        /*printf("Mang dst sau khi da sap xep: ");
-        for (int index=0; index<n; index++){
-            printf("%d ", dst[index]);
-        }
-        printf("\n");*/
+	// TODO: Copy result to "out"
+	memcpy(out, src, n * sizeof(uint32_t));
 
-    	// TODO: Swap "src" and "dst"
-        uint32_t * temp = src;
-        src = dst;
-        dst = temp;
-
-        //break;
-    }
-    // [DEBUG]: In mảng src
-    /*printf("Mang ket qua la: ");
-    for(int index=0; index<n; index++){
-        printf("%d ", src[index]);
-    }
-    printf("\n");*/
-
-    // TODO: Copy result to "out"
-    memcpy(out, src, n * sizeof(uint32_t));
-    
-    // Free memories
-    free(localHist);
-    free(listLocalHist);
-    free(histScan);
-    free(originalSrc);
-    free(listLocalHistConvert);
-    free(sortBlockData);
-    free(blockData);
-    free(beginIndex);
-    free(eleBefore);
+	// Free memories
+	free(listLocalHist);
+	free(histScan);
+	free(originalSrc);
+	free(listLocalHistConvert);
+	free(eleBefore);
 }
 
-// (Partially) Parallel radix sort: implement parallel histogram and parallel scan in counting sort
-// Assume: nBits (k in slides) in {1, 2, 4, 8, 16}
-// Why "int * blockSizes"? 
-// Because we may want different block sizes for diffrent kernels:
-//   blockSizes[0] for the histogram kernel
-//   blockSizes[1] for the scan kernel
-void sortByDevice(const uint32_t * in, int n, 
+
+void sortByLibrary(const uint32_t * in, int n, 
         uint32_t * out, 
-        int nBits, int * blockSizes)
+        int nBits)
 {
     // TODO
 	thrust::device_vector<uint32_t> dv_out(in, in + n);
@@ -355,15 +245,23 @@ void sortByDevice(const uint32_t * in, int n,
 }
 
 // Radix sort
+/*
+	@type 	0 Sử dụng thư viện
+			1 Sử dụng Host
+			2 Sử dụng Device
+*/
 void sort(const uint32_t * in, int n, 
         uint32_t * out, 
         int nBits,
-        bool useDevice=false, int * blockSizes=NULL)
+        int type, int * blockSizes=NULL)
 {
     GpuTimer timer; 
     timer.Start();
-
-    if (useDevice == false)
+	if (type == 0){
+		printf("\nRadix sort by library\n");
+        sortByLibrary(in, n, out, nBits);
+	}
+    if (type == 1)
     {
     	printf("\nRadix sort by host\n");
         sortByHost(in, n, out, nBits, 32);
@@ -371,7 +269,6 @@ void sort(const uint32_t * in, int n,
     else // use device
     {
     	printf("\nRadix sort by device\n");
-        sortByDevice(in, n, out, nBits, blockSizes);
     }
 
     timer.Stop();
@@ -421,7 +318,7 @@ int main(int argc, char ** argv)
 
     // SET UP INPUT SIZE
     int n = (1 << 24) + 1;
-    //n = 10;
+    n = 1000;
     printf("\nInput size: %d\n", n);
 
     // ALLOCATE MEMORIES
@@ -434,7 +331,7 @@ int main(int argc, char ** argv)
     for (int i = 0; i < n; i++)
         in[i] = rand();
         //in[i] = rand() % 8;
-    //uint32_t temp[10] = {3,2,5,7,9,9,8,8,1,1};
+    //uint32_t temp[11] = {41,18467,6334,26500,19169,15724,11478,29358,26962,24464,5705};
     //memcpy(in, temp, n * sizeof(uint32_t));
     //printArray(in, n);
 
@@ -454,15 +351,18 @@ int main(int argc, char ** argv)
     }
     printf("\nHist block size: %d, scan block size: %d\n", blockSizes[0], blockSizes[1]);
 
-    // SORT BY DEVICE
-    sort(in, n, correctOut, nBits, true, blockSizes);
-    //checkCorrectness(out, correctOut, n);
+    // SORT BY LIBRARY
+    sort(in, n, correctOut, nBits, LIBRARY);
 
     // SORT BY HOST
-    sort(in, n, out, nBits);
+    sort(in, n, out, nBits, HOST);
     checkCorrectness(out, correctOut, n);
-    //printArray(correctOut, n);
     
+	// SORT BY DEVICE
+	out[0] = 1; // Sửa lại mảng out để output sẽ khác
+    sort(in, n, correctOut, nBits, DEVICE, blockSizes);
+	checkCorrectness(out, correctOut, n);
+
     // FREE MEMORIES 
     free(in);
     free(out);
