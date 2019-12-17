@@ -15,8 +15,8 @@ Viết thuật toán Radix Sort song song và tối ưu thuật toán này
 
 |**Công việc**|**Ngày bắt đầu**|**Ngày kết thúc**|**Ngày hoàn thành thực tế**|
 |---|:---:|:---:|:---:|
-|Code thuật toán radix sort tuần tự|13/12/2019|16/12/2019||
-|Code thuật toán radix sort song song|17/12/2019|22/12/2019|16/12/2019|  
+|Code thuật toán radix sort tuần tự|13/12/2019|16/12/2019|17/12/2019|
+|Code thuật toán radix sort song song|17/12/2019|22/12/2019||  
 |Tối ưu thuật toán radix sort|23/12/2019|09/01/2020||
 |Viết báo cáo|10/01/2020|10/01/2020||
 |Viết slide|11/01/2020|11/01/2020||
