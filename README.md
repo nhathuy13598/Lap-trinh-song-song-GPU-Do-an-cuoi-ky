@@ -48,11 +48,11 @@ Vì thầy sẽ đánh giá điểm dựa vào quy trình tối ưu thuật toá
 ....
 ## 5. Kết quả + Hình ảnh chụp
 #### Baseline 1
-File: [Version1.cu](Code_Version/Version1.cu)
+File: [Version1.cu](Code%20Version/Version1.cu)
 
 Image: ![Hình 1](Report/Baseline1_2.png)
 #### Baseline 2
-File: [Version1.cu](Code_Version/Version1.cu)
+File: [Version1.cu](Code%20Version/Version1.cu)
 
 Image: ![Hình 1](Report/Baseline1_2.png)
 #### Baseline 3
@@ -60,7 +60,7 @@ File:
 
 Image:
 #### Baseline 4
-File: [Version3.cu](Code_Version/Version3.cu)
+File: [Version3.cu](Code%20Version/Version3.cu)
 
 Image: ![Hình 3](Report/Baseline4.png)
 |**Version**|**histogramKernel**|**scanBlkKernel**|**addBlkKernel**|**transposeKernel**|**scatterKernel**|**Total**|
