@@ -32,6 +32,15 @@ Lập trình song song GPU: Đồ án thuật toán sắp xếp Radix Sort
 Việc tối ưu thuật toán sẽ chia làm 3 bước: `Phân tích`, `Thiết kế` và `Cài đặt`  
 Vì thầy sẽ đánh giá điểm dựa vào quy trình tối ưu thuật toán là có hợp lý hay không hơn là đánh giá vào thời gian chạy của thuật toán nên ***tất cả các bước tối ưu hóa sau khi cài đặt được thuật toán radix sort song song sẽ được ghi tiếp ở file này theo các bước trên***  
 > Việc làm như vậy sẽ dễ dàng trong việc viết báo cáo về sau 
+#### Bảng phân tích
+|**Version**|**histogramKernel**|**scanBlkKernel**|**addBlkKernel**|**transposeKernel**|**scatterKernel**|**Total**| 
+|:---:|:---:|:---:|:---:|:---:|:---:|:---:| 
+|Baseline 1| | | | | |?ms| 
+|Baseline 2| | | | | |?ms| 
+|Baseline 3| | | | | |?ms| 
+|Baseline 4| | | | | |?ms| 
+|Thrust| | | | | |?ms| 
+
 #### 4.1. Lần tối ưu hóa 1
 ##### Phân tích
 ....
@@ -63,10 +72,3 @@ Image:
 File: [Version3.cu](Code%20Version/Version3.cu)
 
 Image: ![Hình 3](Report/Baseline4.png)
-|**Version**|**histogramKernel**|**scanBlkKernel**|**addBlkKernel**|**transposeKernel**|**scatterKernel**|**Total**|
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:| 
-|Baseline 1||||||?ms| 
-|Baseline 2||||||?ms| 
-|Baseline 3||||||?ms| 
-|Baseline 4||||||?ms| 
-|Thrust||||||?ms| 
