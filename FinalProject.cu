@@ -341,18 +341,13 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 	int gridSizeHist = (n - 1) / blockSizes[0] + 1;
 	int gridSizeScan = (gridSizeHist * nBins - 1) / blockSizes[1] + 1;
 
-	uint32_t *src = (uint32_t *)malloc(n * sizeof(uint32_t));
-	memcpy(src, in, n * sizeof(uint32_t));
-	uint32_t *originalSrc = src; // Use originalSrc to free memory later
-	uint32_t *dst = out;
-
-
-	// allocate data on device
-	size_t in_size = n * sizeof(uint32_t);
-	size_t out_size = in_size;
+	// Allocate data on device
+	int in_size = n * sizeof(uint32_t);
+	int out_size = in_size;
 	uint32_t *d_src, *d_dst;
 	CHECK(cudaMalloc(&d_src, in_size));
 	CHECK(cudaMalloc(&d_dst, out_size));
+	CHECK(cudaMemcpy(d_src, in, in_size, cudaMemcpyHostToDevice));
 
 	// Allocate another data on device
 	size_t histArr_size = gridSizeHist * nBins * sizeof(int);
@@ -365,16 +360,21 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 	CHECK(cudaMalloc(&d_scanHistArr, histArr_size));
 	CHECK(cudaMalloc(&d_scanHistArrTranpose, histArr_size));
 	CHECK(cudaMalloc(&d_blkSums, size_blksum));
+	
 
+	// Set time
+	GpuTimer timer;
+	float histTime, scanTime, addTime, transposeTime, scatterTime;
+	histTime = scanTime = addTime = transposeTime = scatterTime = 0;
 	for (int bit = 0; bit < sizeof(uint32_t) * 8; bit += nBits)
 	{
-		// copy data to host
-		CHECK(cudaMemcpy(d_src, src, in_size, cudaMemcpyHostToDevice));
-
 		CHECK(cudaMemset(d_histArr, 0, histArr_size));
 
 		// call histogram kernel
+		timer.Start();
 		histogramKernel<<<gridSizeHist, blockSizes[0]>>>(d_src, n, d_histArr, nBits, bit);
+		timer.Stop();
+		histTime += timer.Elapsed();
 
 		// FIXME: Debug
 		/*CHECK(cudaMemcpy(histArr, d_histArr, histArr_size, cudaMemcpyDeviceToHost));
@@ -386,6 +386,7 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 		
 
 		// call scan kernel function
+		timer.Start();
 		scanBlkKernel<<<gridSizeScan, blockSizes[1], blockSizes[1] * sizeof(int)>>>(d_histArr, gridSizeHist * nBins, d_scanHistArr, d_blkSums);
 
 		// copy result to host
@@ -396,12 +397,17 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 		{
 			blkSums[i] += blkSums[i - 1];
 		}
+		timer.Stop();
+		scanTime += timer.Elapsed();
 
 		// copy data to device
 		CHECK(cudaMemcpy(d_blkSums, blkSums, size_blksum, cudaMemcpyHostToDevice));
 
 		// call add kernel function
+		timer.Start();
 		addBlkKernel<<<gridSizeScan, blockSizes[1]>>>(d_scanHistArr, gridSizeHist * nBins, d_blkSums);
+		timer.Stop();
+		addTime += timer.Elapsed();
 
 		// FIXME: Debug
 		/*CHECK(cudaMemcpy(scanHistArr, d_scanHistArr, histArr_size, cudaMemcpyDeviceToHost));
@@ -413,10 +419,10 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 		
 
 		// Transpose scanHistArray
+		timer.Start();
 		transposeKernel<<<gridSizeScan, blockSizes[1]>>>(d_scanHistArr, gridSizeHist * nBins, gridSizeHist, d_scanHistArrTranpose);
-
-		// copy result to host
-		
+		timer.Stop();
+		transposeTime += timer.Elapsed();
 
 		// FIXME: Debug
 		/*CHECK(cudaMemcpy(scanHistArr, d_scanHistArrTranpose, histArr_size, cudaMemcpyDeviceToHost));
@@ -428,27 +434,33 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 		
 
 		// scatter array: do this serially in each block
+		timer.Start();
 		scatterKernel<<<gridSizeHist, 1>>>(d_src, n, blockSizes[0], d_dst, d_scanHistArrTranpose, nBits, bit);
-
-		// copy result to host
-		CHECK(cudaMemcpy(dst, d_dst, out_size, cudaMemcpyDeviceToHost));
+		timer.Stop();
+		scatterTime += timer.Elapsed();
 
 		// FIXME: Debug
-		/*for (int i = 0; i < n; ++i) {
+		/*CHECK(cudaMemcpy(dst, d_dst, out_size, cudaMemcpyDeviceToHost));
+		for (int i = 0; i < n; ++i) {
 		  	printf("%d\t", dst[i]);
 			if (i == n - 1)
 				printf("\n===|===|===|===|===|===|===|===|===|===\n");
 		}*/
 		
-
 		// Swap "src" and "dst"
-		uint32_t *tp = src;
-		src = dst;
-		dst = tp;
+		uint32_t *tp = d_src;
+		d_src = d_dst;
+		d_dst = tp;
 	}
+	// Print runtime
+	printf("Hist Time: %.3f\n", histTime);
+	printf("Scan Time: %.3f\n", scanTime);
+	printf("Add Time: %.3f\n", addTime);
+	printf("Transpose Time: %.3f\n", transposeTime);
+	printf("Scatter Time: %.3f\n", scatterTime);
 
-	// DONE: Copy result to "out"
-	memcpy(out, src, n * sizeof(uint32_t));
+	// DONE: Copy result from "d_src" to "out"
+	CHECK(cudaMemcpy(out, d_src, n * sizeof(uint32_t), cudaMemcpyDeviceToHost));
 
 	// free memories
 	CHECK(cudaFree(d_src));
@@ -456,10 +468,10 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 	CHECK(cudaFree(d_histArr));
 	CHECK(cudaFree(d_scanHistArr));
 	CHECK(cudaFree(d_scanHistArrTranpose));
+	CHECK(cudaFree(d_blkSums))
 	free(blkSums);
 	//free(histArr);
 	//free(scanHistArr);
-	free(originalSrc);
 }
 
 // Radix sort
@@ -488,7 +500,6 @@ void sort(const uint32_t *in, int n, uint32_t *out, int nBits, int type,
 		printf("\nRadix sort by device\n");
 		sortByDevice(in, n, out, nBits, blockSizes);
 	}
-
 	timer.Stop();
 	printf("Time: %.3f ms\n", timer.Elapsed());
 }
