@@ -248,8 +248,7 @@ void sortByLibrary(const uint32_t *in, int n, uint32_t *out, int nBits)
 
 #define getBin(num) (((num) >> (bit)) & ((nBins)-1))
 
-__global__ void histogramKernel(uint32_t *in, int n, int *histogramArray,
-								int nBits, int bit)
+__global__ void histogramKernel(uint32_t *in, int n, int *histogramArray, int nBits, int bit)
 {
 	int nBins = 1 << nBits;
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -316,9 +315,9 @@ __global__ void transposeKernel(int *in, int n, int width, int *out)
 	out[x * (n / width) + y] = in[idx];
 }
 
-__global__ void scatterKernel(uint32_t *in, int n, int numElements,
-							  uint32_t *out, int *scanHistogramArrayTranspose,
-							  int nBits, int bit)
+__global__ void scatterKernel(uint32_t *in, int n, int numElements, uint32_t *out, 
+								int *scanHistogramArrayTranspose, 
+								int nBits, int bit)
 {
 	int nBins = 1 << nBits;
 	for (int i = 0; i < numElements; ++i)
@@ -326,54 +325,44 @@ __global__ void scatterKernel(uint32_t *in, int n, int numElements,
 		int idx = blockIdx.x * numElements + i;
 		if (idx < n)
 		{
-			int rank =
-				scanHistogramArrayTranspose[blockIdx.x * nBins + getBin(in[idx])];
-			atomicAdd(scanHistogramArrayTranspose + blockIdx.x * nBins +
-						  getBin(in[idx]),
-					  1);
+			int rank = scanHistogramArrayTranspose[blockIdx.x * nBins + getBin(in[idx])];
+			atomicAdd(scanHistogramArrayTranspose + blockIdx.x * nBins + getBin(in[idx]), 1);
 			out[rank] = in[idx];
 		}
 	}
 }
 
-// (Partially) Parallel radix sort: implement parallel histogram and parallel
-// scan in counting sort Assume: nBits (k in slides) in {1, 2, 4, 8, 16} Why
-// "int * blockSizes"? Because we may want different block sizes for diffrent
-// kernels:
-//   blockSizes[0] for the histogram kernel
-//   blockSizes[1] for the scan kernel
 
-void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits,
-				  int *blockSizes)
+void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *blockSizes)
 {
 
 	// initialize data
-	int nBins = 1 << nBits;
+	int nBins = 1 << nBits; // 2 ^ nBits
 	int gridSizes[2] = {(n - 1) / blockSizes[0] + 1, 0};
 	gridSizes[1] = (gridSizes[0] * nBins - 1) / blockSizes[1] + 1;
 	size_t in_size = n * sizeof(uint32_t);
 	size_t out_size = in_size;
 	size_t size_blksum = gridSizes[1] * sizeof(int);
-	size_t histogramArray_size = gridSizes[0] * nBins * sizeof(int);
+	size_t histArr_size = gridSizes[0] * nBins * sizeof(int);
 
 	uint32_t *src = (uint32_t *)malloc(n * sizeof(uint32_t));
 	memcpy(src, in, n * sizeof(uint32_t));
 	uint32_t *originalSrc = src; // Use originalSrc to free memory later
 	uint32_t *dst = out;
 
-	int *histogramArray = (int *)malloc(histogramArray_size);
-	int *scanHistogramArray = (int *)malloc(histogramArray_size);
+	int *histogramArray = (int *)malloc(histArr_size);
+	int *scanHistArr = (int *)malloc(histArr_size);
 	int *blkSums = (int *)malloc(size_blksum);
 	uint32_t *d_src, *d_dst;
-	int *d_histogramArray, *d_scanHistogramArray, *d_blkSums,
-		*d_scanHistogramArrayTranspose;
+	int *d_histArr, *d_scanHistArr, 
+		*d_blkSums, *d_scanHistArrTranpose;
 
 	// allocate data on device
 	CHECK(cudaMalloc(&d_src, in_size));
 	CHECK(cudaMalloc(&d_dst, out_size));
-	CHECK(cudaMalloc(&d_histogramArray, histogramArray_size));
-	CHECK(cudaMalloc(&d_scanHistogramArray, histogramArray_size));
-	CHECK(cudaMalloc(&d_scanHistogramArrayTranspose, histogramArray_size));
+	CHECK(cudaMalloc(&d_histArr, histArr_size));
+	CHECK(cudaMalloc(&d_scanHistArr, histArr_size));
+	CHECK(cudaMalloc(&d_scanHistArrTranpose, histArr_size));
 	CHECK(cudaMalloc(&d_blkSums, size_blksum));
 
 	for (int bit = 0; bit < sizeof(uint32_t) * 8; bit += nBits)
@@ -381,15 +370,13 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits,
 		// copy data to host
 		CHECK(cudaMemcpy(d_src, src, in_size, cudaMemcpyHostToDevice));
 
-		CHECK(cudaMemset(d_histogramArray, 0, histogramArray_size));
+		CHECK(cudaMemset(d_histArr, 0, histArr_size));
 
 		// call histogram kernel
-		histogramKernel<<<dim3(gridSizes[0]), dim3(blockSizes[0])>>>(
-			d_src, n, d_histogramArray, nBits, bit);
+		histogramKernel<<<gridSizes[0], blockSizes[0]>>>(d_src, n, d_histArr, nBits, bit);
 
 		// copy histogram array to host
-		CHECK(cudaMemcpy(histogramArray, d_histogramArray, histogramArray_size,
-						 cudaMemcpyDeviceToHost));
+		CHECK(cudaMemcpy(histogramArray, d_histArr, histArr_size, cudaMemcpyDeviceToHost));
 
 		// FIXME: Debug
 		/* for (int i = 0; i < gridSizes[0] * nBins; ++i) { */
@@ -398,10 +385,7 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits,
 		/* printf("\n===|===|===|===|===|===|===|===|===|===\n"); */
 
 		// call scan kernel function
-		scanBlkKernel<<<dim3(gridSizes[1]), dim3(blockSizes[1]),
-						blockSizes[1] * sizeof(int)>>>(
-			d_histogramArray, gridSizes[0] * nBins, d_scanHistogramArray,
-			d_blkSums);
+		scanBlkKernel<<<gridSizes[1], blockSizes[1], blockSizes[1] * sizeof(int)>>>(d_histArr, gridSizes[0] * nBins, d_scanHistArr, d_blkSums);
 
 		// copy result to host
 		CHECK(cudaMemcpy(blkSums, d_blkSums, size_blksum, cudaMemcpyDeviceToHost));
@@ -416,38 +400,31 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits,
 		CHECK(cudaMemcpy(d_blkSums, blkSums, size_blksum, cudaMemcpyHostToDevice));
 
 		// call add kernel function
-		addBlkKernel<<<dim3(gridSizes[1]), dim3(blockSizes[1])>>>(
-			d_scanHistogramArray, gridSizes[0] * nBins, d_blkSums);
+		addBlkKernel<<<gridSizes[1], blockSizes[1]>>>(d_scanHistArr, gridSizes[0] * nBins, d_blkSums);
 
 		// copy result to host
-		CHECK(cudaMemcpy(scanHistogramArray, d_scanHistogramArray,
-						 histogramArray_size, cudaMemcpyDeviceToHost));
+		CHECK(cudaMemcpy(scanHistArr, d_scanHistArr, histArr_size, cudaMemcpyDeviceToHost));
 
 		// FIXME: Debug
 		/* for (int i = 0; i < gridSizes[0] * nBins; ++i) { */
-		/*   printf("%d\t", scanHistogramArray[i]); */
+		/*   printf("%d\t", scanHistArr[i]); */
 		/* } */
 		/* printf("\n===|===|===|===|===|===|===|===|===|===\n"); */
 
 		// Transpose scanHistArray
-		transposeKernel<<<gridSizes[1], blockSizes[1]>>>(
-			d_scanHistogramArray, gridSizes[0] * nBins, gridSizes[0],
-			d_scanHistogramArrayTranspose);
+		transposeKernel<<<gridSizes[1], blockSizes[1]>>>(d_scanHistArr, gridSizes[0] * nBins, gridSizes[0], d_scanHistArrTranpose);
 
 		// copy result to host
-		CHECK(cudaMemcpy(scanHistogramArray, d_scanHistogramArrayTranspose,
-						 histogramArray_size, cudaMemcpyDeviceToHost));
+		CHECK(cudaMemcpy(scanHistArr, d_scanHistArrTranpose, histArr_size, cudaMemcpyDeviceToHost));
 
 		// FIXME: Debug
 		/* for (int i = 0; i < gridSizes[0] * nBins; ++i) { */
-		/*   printf("%d\t", scanHistogramArray[i]); */
+		/*   printf("%d\t", scanHistArr[i]); */
 		/* } */
 		/* printf("\n===|===|===|===|===|===|===|===|===|===\n"); */
 
 		// scatter array: do this serially in each block
-		scatterKernel<<<dim3(gridSizes[0]), dim3(1)>>>(
-			d_src, n, blockSizes[0], d_dst, d_scanHistogramArrayTranspose, nBits,
-			bit);
+		scatterKernel<<<gridSizes[0], 1>>>(d_src, n, blockSizes[0], d_dst, d_scanHistArrTranpose, nBits, bit);
 
 		// copy result to host
 		CHECK(cudaMemcpy(dst, d_dst, out_size, cudaMemcpyDeviceToHost));
@@ -470,11 +447,11 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits,
 	// free memories
 	CHECK(cudaFree(d_src));
 	CHECK(cudaFree(d_dst));
-	CHECK(cudaFree(d_histogramArray));
-	CHECK(cudaFree(d_scanHistogramArray));
-	CHECK(cudaFree(d_scanHistogramArrayTranspose));
+	CHECK(cudaFree(d_histArr));
+	CHECK(cudaFree(d_scanHistArr));
+	CHECK(cudaFree(d_scanHistArrTranpose));
 	free(histogramArray);
-	free(scanHistogramArray);
+	free(scanHistArr);
 	free(originalSrc);
 }
 
@@ -518,8 +495,7 @@ void printDeviceInfo()
 	printf("Compute capability: %d.%d\n", devProv.major, devProv.minor);
 	printf("Num SMs: %d\n", devProv.multiProcessorCount);
 	printf("Max num threads per SM: %d\n", devProv.maxThreadsPerMultiProcessor);
-	printf("Max num warps per SM: %d\n",
-		   devProv.maxThreadsPerMultiProcessor / devProv.warpSize);
+	printf("Max num warps per SM: %d\n", devProv.maxThreadsPerMultiProcessor / devProv.warpSize);
 	printf("GMEM: %zu byte\n", devProv.totalGlobalMem);
 	printf("SMEM per SM: %zu byte\n", devProv.sharedMemPerMultiprocessor);
 	printf("SMEM per block: %zu byte\n", devProv.sharedMemPerBlock);
@@ -553,6 +529,7 @@ int main(int argc, char **argv)
 
 	// SET UP INPUT SIZE
 	int n = (1 << 24) + 1;
+	n = 1000;
 	printf("\nInput size: %d\n", n);
 
 	// ALLOCATE MEMORIES
@@ -565,9 +542,8 @@ int main(int argc, char **argv)
 	for (int i = 0; i < n; i++)
 		in[i] = rand();
 	// in[i] = rand() % 8;
-	// uint32_t temp[11] =
-	// {41,18467,6334,26500,19169,15724,11478,29358,26962,24464,5705}; memcpy(in,
-	// temp, n * sizeof(uint32_t)); printArray(in, n);
+	// uint32_t temp[11] = {41,18467,6334,26500,19169,15724,11478,29358,26962,24464,5705}; 
+	// memcpy(in, temp, n * sizeof(uint32_t)); printArray(in, n);
 
 	// SET UP NBITS
 	int nBits = 4; // Default
