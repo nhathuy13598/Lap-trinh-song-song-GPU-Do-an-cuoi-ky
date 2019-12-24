@@ -370,7 +370,7 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 	{
 		CHECK(cudaMemset(d_histArr, 0, histArr_size));
 
-		// call histogram kernel
+		// TODO: Do histogram
 		timer.Start();
 		histogramKernel<<<gridSizeHist, blockSizes[0]>>>(d_src, n, d_histArr, nBits, bit);
 		timer.Stop();
@@ -385,7 +385,7 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 		}*/
 		
 
-		// call scan kernel function
+		// TODO: Scan histogram
 		timer.Start();
 		scanBlkKernel<<<gridSizeScan, blockSizes[1], blockSizes[1] * sizeof(int)>>>(d_histArr, gridSizeHist * nBins, d_scanHistArr, d_blkSums);
 
@@ -403,7 +403,7 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 		// copy data to device
 		CHECK(cudaMemcpy(d_blkSums, blkSums, size_blksum, cudaMemcpyHostToDevice));
 
-		// call add kernel function
+		// TODO: Add after scan
 		timer.Start();
 		addBlkKernel<<<gridSizeScan, blockSizes[1]>>>(d_scanHistArr, gridSizeHist * nBins, d_blkSums);
 		timer.Stop();
@@ -418,7 +418,7 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 		}*/
 		
 
-		// Transpose scanHistArray
+		// TODO: Transpose
 		timer.Start();
 		transposeKernel<<<gridSizeScan, blockSizes[1]>>>(d_scanHistArr, gridSizeHist * nBins, gridSizeHist, d_scanHistArrTranpose);
 		timer.Stop();
@@ -433,7 +433,7 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 		}*/
 		
 
-		// scatter array: do this serially in each block
+		// TODO: Scatter
 		timer.Start();
 		scatterKernel<<<gridSizeHist, 1>>>(d_src, n, blockSizes[0], d_dst, d_scanHistArrTranpose, nBits, bit);
 		timer.Stop();
@@ -547,7 +547,7 @@ int main(int argc, char **argv)
 
 	// SET UP INPUT SIZE
 	int n = (1 << 24) + 1;
-	n = 1000;
+	//n = 1000;
 	printf("\nInput size: %d\n", n);
 
 	// ALLOCATE MEMORIES
