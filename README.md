@@ -65,9 +65,9 @@ File: [Version1.cu](Code%20Version/Version1.cu)
 
 Image: ![Hình 1](Report/Baseline1_2.png)
 #### Baseline 3
-File: 
+File: [Version2.cu](Code%20Version/Version2.cu)
 
-Image:
+Image: ![Hình 2](Report/Baseline3.png)
 #### Baseline 4
 File: [Version3.cu](Code%20Version/Version3.cu)
 
