@@ -28,47 +28,44 @@ Lập trình song song GPU: Đồ án thuật toán sắp xếp Radix Sort
 |Viết slide|09/01/2020|09/01/2020||
 |Dự phòng|10/01/2020|10/01/2020||
 
-## 4. Quy trình tối ưu thuật toán Radix Sort
+## 4. Kết quả các baseline + Hình ảnh chụp
+#### Baseline 1 ([Version1.cu](Code%20Version/Version1.cu))
+![Hình 1](Report/Baseline1_2.png)
+#### Baseline 2 ([Version1.cu](Code%20Version/Version1.cu))
+![Hình 1](Report/Baseline1_2.png)
+#### Baseline 3 ([Version2.cu](Code%20Version/Version2.cu))
+![Hình 2](Report/Baseline3.png)
+#### Baseline 4 ([Version3.cu](Code%20Version/Version3.cu))
+![Hình 3](Report/Baseline4.png)
+
+## 5. Quy trình tối ưu thuật toán Radix Sort
 Việc tối ưu thuật toán sẽ chia làm 3 bước: `Phân tích`, `Thiết kế` và `Cài đặt`  
 Vì thầy sẽ đánh giá điểm dựa vào quy trình tối ưu thuật toán là có hợp lý hay không hơn là đánh giá vào thời gian chạy của thuật toán nên ***tất cả các bước tối ưu hóa sau khi cài đặt được thuật toán radix sort song song sẽ được ghi tiếp ở file này theo các bước trên***  
 > Việc làm như vậy sẽ dễ dàng trong việc viết báo cáo về sau 
-#### Bảng phân tích
+#### Bảng đo thời gian
 |**Version**|**histogramKernel**|**scanBlkKernel**|**addBlkKernel**|**transposeKernel**|**scatterKernel**|**Total**| 
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:| 
 |Baseline 1| | | | | |?ms| 
 |Baseline 2| | | | | |?ms| 
 |Baseline 3| | | | | |?ms| 
-|Baseline 4| | | | | |?ms| 
+|Baseline 4 (Tuần tự)| | | | | |?ms| 
+|Parallel v1| | | | | |?ms|
 |Thrust| | | | | |?ms| 
 
-#### 4.1. Lần tối ưu hóa 1
+#### 5.1. Lần tối ưu hóa 1
+##### Phân tích
+* Ta sẽ tiến hành song song hóa các bước ở baseline 4 để giảm tổng thời gian thực hiện
+##### Thiết kế
+* Thuật toán sẽ giống như được học trên lớp. Ở bước histogramKernel thì sau khi làm xong thì sẽ lưu xuống mảng 2 chiều với mỗi cột sẽ là một histogram cho dễ scan. Sau khi scan, ta sẽ chuyển vị lại cho dễ làm các bước sau. Ở bản này, bước scatter sẽ dùng một thread duy nhất trong block để chạy vì nhóm chưa tìm ra cách song song hóa.
+##### Cài đặt 
+* File code được cài đặt ở [Parallel_v1](Code%20Version/Parallel_v1.cu)  
+* Kết quả: ![Hình ảnh chưa có bổ sung sau](Code)  
+* Nhận xét: Tốc độ chạy nhanh hơn
+#### 5.2. Lần tối ưu hóa 2
 ##### Phân tích
 ....
 ##### Thiết kế
 ....
 ##### Cài đặt 
 ....
-#### 4.2. Lần tối ưu hóa 2
-##### Phân tích
-....
-##### Thiết kế
-....
-##### Cài đặt 
-....
-## 5. Kết quả + Hình ảnh chụp
-#### Baseline 1
-File: [Version1.cu](Code%20Version/Version1.cu)
 
-Image: ![Hình 1](Report/Baseline1_2.png)
-#### Baseline 2
-File: [Version1.cu](Code%20Version/Version1.cu)
-
-Image: ![Hình 1](Report/Baseline1_2.png)
-#### Baseline 3
-File: [Version2.cu](Code%20Version/Version2.cu)
-
-Image: ![Hình 2](Report/Baseline3.png)
-#### Baseline 4
-File: [Version3.cu](Code%20Version/Version3.cu)
-
-Image: ![Hình 3](Report/Baseline4.png)
