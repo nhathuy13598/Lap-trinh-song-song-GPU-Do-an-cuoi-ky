@@ -346,24 +346,21 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 	uint32_t *originalSrc = src; // Use originalSrc to free memory later
 	uint32_t *dst = out;
 
-	// Khởi tạo mảng chứa các histogram
-	size_t histArr_size = gridSizeHist * nBins * sizeof(int);
-	int *histArr = (int *)malloc(histArr_size);
-
-	// Khởi tạo mảng chứa kết quả scan mảng histArr
-	int *scanHistArr = (int *)malloc(histArr_size);
-
-	// Khởi tạo mảng chứa kết quả scan của từng block
-	size_t size_blksum = gridSizeScan * sizeof(int);
-	int *blkSums = (int *)malloc(size_blksum);
 
 	// allocate data on device
 	size_t in_size = n * sizeof(uint32_t);
 	size_t out_size = in_size;
 	uint32_t *d_src, *d_dst;
-	int *d_histArr, *d_scanHistArr, *d_blkSums, *d_scanHistArrTranpose;
 	CHECK(cudaMalloc(&d_src, in_size));
 	CHECK(cudaMalloc(&d_dst, out_size));
+
+	// Allocate another data on device
+	size_t histArr_size = gridSizeHist * nBins * sizeof(int);
+	size_t size_blksum = gridSizeScan * sizeof(int);
+	//int *histArr = (int *)malloc(histArr_size);
+	//int *scanHistArr = (int *)malloc(histArr_size);
+	int *blkSums = (int *)malloc(size_blksum);
+	int *d_histArr, *d_scanHistArr, *d_blkSums, *d_scanHistArrTranpose;
 	CHECK(cudaMalloc(&d_histArr, histArr_size));
 	CHECK(cudaMalloc(&d_scanHistArr, histArr_size));
 	CHECK(cudaMalloc(&d_scanHistArrTranpose, histArr_size));
@@ -379,14 +376,14 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 		// call histogram kernel
 		histogramKernel<<<gridSizeHist, blockSizes[0]>>>(d_src, n, d_histArr, nBits, bit);
 
-		// copy histogram array to host
-		CHECK(cudaMemcpy(histArr, d_histArr, histArr_size, cudaMemcpyDeviceToHost));
-
 		// FIXME: Debug
-		/* for (int i = 0; i < gridSizeHist * nBins; ++i) { */
-		/*   printf("%d\t", histArr[i]); */
-		/* } */
-		/* printf("\n===|===|===|===|===|===|===|===|===|===\n"); */
+		/*CHECK(cudaMemcpy(histArr, d_histArr, histArr_size, cudaMemcpyDeviceToHost));
+		for (int i = 0; i < gridSizeHist * nBins; ++i) {
+		  	printf("%d\t", histArr[i]);
+			if (i == gridSizeHist * nBins - 1)
+				printf("\n===|===|===|===|===|===|===|===|===|===\n");
+		}*/
+		
 
 		// call scan kernel function
 		scanBlkKernel<<<gridSizeScan, blockSizes[1], blockSizes[1] * sizeof(int)>>>(d_histArr, gridSizeHist * nBins, d_scanHistArr, d_blkSums);
@@ -406,26 +403,29 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 		// call add kernel function
 		addBlkKernel<<<gridSizeScan, blockSizes[1]>>>(d_scanHistArr, gridSizeHist * nBins, d_blkSums);
 
-		// copy result to host
-		CHECK(cudaMemcpy(scanHistArr, d_scanHistArr, histArr_size, cudaMemcpyDeviceToHost));
-
 		// FIXME: Debug
-		/* for (int i = 0; i < gridSizeHist * nBins; ++i) { */
-		/*   printf("%d\t", scanHistArr[i]); */
-		/* } */
-		/* printf("\n===|===|===|===|===|===|===|===|===|===\n"); */
+		/*CHECK(cudaMemcpy(scanHistArr, d_scanHistArr, histArr_size, cudaMemcpyDeviceToHost));
+		for (int i = 0; i < gridSizeHist * nBins; ++i) {
+		  	printf("%d\t", scanHistArr[i]);
+		  	if(i == gridSizeHist * nBins - 1)
+		  		printf("\n===|===|===|===|===|===|===|===|===|===\n");
+		}*/
+		
 
 		// Transpose scanHistArray
 		transposeKernel<<<gridSizeScan, blockSizes[1]>>>(d_scanHistArr, gridSizeHist * nBins, gridSizeHist, d_scanHistArrTranpose);
 
 		// copy result to host
-		CHECK(cudaMemcpy(scanHistArr, d_scanHistArrTranpose, histArr_size, cudaMemcpyDeviceToHost));
+		
 
 		// FIXME: Debug
-		/* for (int i = 0; i < gridSizeHist * nBins; ++i) { */
-		/*   printf("%d\t", scanHistArr[i]); */
-		/* } */
-		/* printf("\n===|===|===|===|===|===|===|===|===|===\n"); */
+		/*CHECK(cudaMemcpy(scanHistArr, d_scanHistArrTranpose, histArr_size, cudaMemcpyDeviceToHost));
+		for (int i = 0; i < gridSizeHist * nBins; ++i) {
+		  	printf("%d\t", scanHistArr[i]);
+			if(i == gridSizeHist * nBins - 1)
+				printf("\n===|===|===|===|===|===|===|===|===|===\n");
+		}*/
+		
 
 		// scatter array: do this serially in each block
 		scatterKernel<<<gridSizeHist, 1>>>(d_src, n, blockSizes[0], d_dst, d_scanHistArrTranpose, nBits, bit);
@@ -434,10 +434,12 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 		CHECK(cudaMemcpy(dst, d_dst, out_size, cudaMemcpyDeviceToHost));
 
 		// FIXME: Debug
-		/* for (int i = 0; i < n; ++i) { */
-		/*   printf("%d\t", dst[i]); */
-		/* } */
-		/* printf("\n===|===|===|===|===|===|===|===|===|===\n"); */
+		/*for (int i = 0; i < n; ++i) {
+		  	printf("%d\t", dst[i]);
+			if (i == n - 1)
+				printf("\n===|===|===|===|===|===|===|===|===|===\n");
+		}*/
+		
 
 		// Swap "src" and "dst"
 		uint32_t *tp = src;
@@ -454,8 +456,9 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 	CHECK(cudaFree(d_histArr));
 	CHECK(cudaFree(d_scanHistArr));
 	CHECK(cudaFree(d_scanHistArrTranpose));
-	free(histArr);
-	free(scanHistArr);
+	free(blkSums);
+	//free(histArr);
+	//free(scanHistArr);
 	free(originalSrc);
 }
 
