@@ -22,7 +22,7 @@ Lập trình song song GPU: Đồ án thuật toán sắp xếp Radix Sort
 |---|:---:|:---:|:---:|
 |Code thuật toán radix sort tuần tự|13/12/2019|16/12/2019|17/12/2019|
 |Code thuật toán radix sort song song|17/12/2019|22/12/2019|22/12/2019|
-|Viết baseline số 3|24/12/2019|24/12/2019||
+|Viết baseline số 3|24/12/2019|24/12/2019|24/12/2019|
 |Tối ưu thuật toán radix sort|25/12/2019|08/01/2020||
 |Viết báo cáo|09/01/2020|09/01/2020||
 |Viết slide|09/01/2020|09/01/2020||
@@ -43,13 +43,13 @@ Việc tối ưu thuật toán sẽ chia làm 3 bước: `Phân tích`, `Thiết
 Vì thầy sẽ đánh giá điểm dựa vào quy trình tối ưu thuật toán là có hợp lý hay không hơn là đánh giá vào thời gian chạy của thuật toán nên ***tất cả các bước tối ưu hóa sau khi cài đặt được thuật toán radix sort song song sẽ được ghi tiếp ở file này theo các bước trên***  
 > Việc làm như vậy sẽ dễ dàng trong việc viết báo cáo về sau 
 #### Bảng đo thời gian
-|**Version**|**histogramKernel**|**scanBlkKernel**|**addBlkKernel**|**transposeKernel**|**scatterKernel**|**Total**| 
+|**Version**|**histogramKernel**|**scanBlkKernel**|**addBlkKernel**|**transposeKernel**|**scatterKernel**|**Total (ms)**| 
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:| 
-|Baseline 1| | | | | |?ms| 
-|Baseline 2| | | | | |?ms| 
-|Baseline 3| | | | | |?ms| 
-|Baseline 4 (Tuần tự)| | | | | |?ms| 
-|Parallel v1| | | | | |?ms|
+|Baseline 1| | | | | |1166.061| 
+|Baseline 2| | | | | |781.464| 
+|Baseline 3| | | | | |5479.868| 
+|Baseline 4 (Tuần tự)| | | | | |23341.660| 
+|Parallel v1|110.776|9.042|1.437|4.189|809.525|1020.13|
 |Thrust| | | | | |?ms| 
 
 #### 5.1. Lần tối ưu hóa 1
@@ -59,7 +59,7 @@ Vì thầy sẽ đánh giá điểm dựa vào quy trình tối ưu thuật toá
 * Thuật toán sẽ giống như được học trên lớp. Ở bước histogramKernel thì sau khi làm xong thì sẽ lưu xuống mảng 2 chiều với mỗi cột sẽ là một histogram cho dễ scan. Sau khi scan, ta sẽ chuyển vị lại cho dễ làm các bước sau. Ở bản này, bước scatter sẽ dùng một thread duy nhất trong block để chạy vì nhóm chưa tìm ra cách song song hóa.
 ##### Cài đặt 
 * File code được cài đặt ở [Parallel_v1](Code%20Version/Parallel_v1.cu)  
-* Kết quả: ![Hình ảnh chưa có bổ sung sau](Code)  
+* Kết quả: ![Hình ảnh chưa có bổ sung sau](Report/Parallel_v1.png) 
 * Nhận xét: Tốc độ chạy nhanh hơn
 #### 5.2. Lần tối ưu hóa 2
 ##### Phân tích
