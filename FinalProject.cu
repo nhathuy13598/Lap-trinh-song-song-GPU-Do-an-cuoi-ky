@@ -369,7 +369,8 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 
 	// FIXME: Debug
 	/*if (threadIdx.x == 0){
-		for (int i=0; i<size; i++){
+		printf("Mang da sap xep: ");
+		for (int i = 0; i < size; i++){
 			printf("%d ", tp[i]);
 			if (i == size - 1)
 				printf("\n");
@@ -392,6 +393,7 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 
 	// FIXME: Debug
 	/*if (threadIdx.x == 0){
+		printf("Mang chi so bat dau: ");
 		for (int i=0; i < nBins; i++){
 			printf("%d ", tp[startArrIdx + i]);
 			if (i == nBins - 1)
@@ -408,7 +410,8 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 
 	// FIXME: Debug
 	/*if (threadIdx.x == 0){
-		for (int i=0; i < size; i++){
+		printf("Mang so luong phan tu bat dau: ");
+		for (int i = 0; i < size; i++){
 			printf("%d ", tp[startArrEleBef + i]);
 			if (i == size - 1)
 				printf("\n");
@@ -416,20 +419,28 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 	}
 	__syncthreads();*/
 
+	// FIXME: Debug
+	/*if (threadIdx.x == 0){
+		printf("Mang scan hist: ");
+		for(int k = 0; k < nBins; k++){
+			printf("%d ", scanHistogramArrayTranspose[k]);
+			if(k == nBins - 1)
+				printf("\n");
+		}
+	}*/
+
 	// Scatter
-	int rank = scanHistogramArrayTranspose[bin * blockDim.x + blockIdx.x] + 
-				tp[startArrEleBef + threadIdx.x];
-	out[rank] = tp[threadIdx.x];
+	//int rank = scanHistogramArrayTranspose[bin * blockDim.x + blockIdx.x] + tp[startArrEleBef + threadIdx.x];
+	if (threadIdx.x < size){
+		int rank = scanHistogramArrayTranspose[blockIdx.x * nBins + bin] + tp[startArrEleBef + threadIdx.x];
+		out[rank] = tp[threadIdx.x];
+	}
 
 	// FIXME: Debug
 	/*__syncthreads();
 	if (threadIdx.x == 0){
-		for(int i = 0; i < nBins; i++){
-			printf("%d ", scanHistogramArrayTranspose[i]);
-			if(i == nBins - 1)
-				printf("\n");
-		}
-		for (int i=0; i < size; i++){
+		printf("Mang sau khi da sap xep: ");
+		for (int i = 0; i < size; i++){
 			printf("%d ", out[i]);
 			if (i == size - 1)
 				printf("\n");
@@ -458,8 +469,8 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 	// Allocate another data on device
 	size_t histArr_size = gridSizeHist * nBins * sizeof(int);
 	size_t size_blksum = gridSizeScan * sizeof(int);
-	int *histArr = (int *)malloc(histArr_size);
-	int *scanHistArr = (int *)malloc(histArr_size);
+	//int *histArr = (int *)malloc(histArr_size);
+	//int *scanHistArr = (int *)malloc(histArr_size);
 	int *blkSums = (int *)malloc(size_blksum);
 	int *d_histArr, *d_scanHistArr, *d_blkSums, *d_scanHistArrTranpose;
 	CHECK(cudaMalloc(&d_histArr, histArr_size));
@@ -660,7 +671,7 @@ int main(int argc, char **argv)
 
 	// SET UP INPUT SIZE
 	int n = (1 << 24) + 1;
-	n = 10;
+	n = 1000;
 	printf("\nInput size: %d\n", n);
 
 	// ALLOCATE MEMORIES
@@ -673,8 +684,8 @@ int main(int argc, char **argv)
 	for (int i = 0; i < n; i++)
 		in[i] = rand();
 	// in[i] = rand() % 8;
-	uint32_t temp[10] = {3,2,5,7,9,9,8,8,1,1}; 
-	memcpy(in, temp, n * sizeof(uint32_t)); printArray(in, n);
+	//uint32_t temp[10] = {3,2,5,7,9,9,8,8,1,1}; 
+	//memcpy(in, temp, n * sizeof(uint32_t)); printArray(in, n);
 
 	// SET UP NBITS
 	int nBits = 4; // Default
