@@ -332,10 +332,13 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 	// }
 
 	/*
-	Smem sẽ gồm có 3 phần dữ liệu
-		1. blockDim.x phần tử
-		2. 2 ^ nBits phần tử
-		3. blockDim.x phần tử
+	Smem sẽ gồm có ? phần dữ liệu
+		1. blockDim.x phần tử (dữ liệu input)
+		2. blockDim.x phần tử (dữ liệu nhị phân)
+		3. blockDim.x phần tử (scan chuỗi nhị phân)
+		4. blockDim.x phần tử (Chứa dữ liệu sắp xếp)
+		4. 2 ^ nBits phần tử (chứa chỉ số bắt đầu)
+		5. blockDim.x phần tử (chứa số lượng phần tử trước nó)
 	*/
 	int nBins = 1 << nBits; // Số lượng bin
 	int size = blockDim.x; //  Số lượng phần tử trong block
@@ -351,8 +354,8 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 	// Lấy ra nBits (bit) của các phần tử trong block với chỉ số bit đầu tiên là bit
 
 	// Sắp xếp các phần tử trong block bằng nBits (bit) này
-	// Thử nghiệm bằng bubble sort bằng 1 thread
-	if (threadIdx.x == 0){
+	// EXPERIMENTAL: Sắp xếp bằng bubble sort bằng 1 thread
+	/*if (threadIdx.x == 0){
 		for (int i = size - 1; i >= 1; i--){
 			for (int j=0; j < i; j++){
 				int first = getBin(tp[j]);
@@ -365,7 +368,120 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 			}
 		}
 	}
-	__syncthreads();
+	__syncthreads();*/
+	int startBitArr = blockDim.x; // Chỉ số bắt đầu chuỗi nhị phân
+	int startBitScan = 2 * blockDim.x; // Chỉ số bắt đầu của mảng scan-chuỗi-nhị-phân
+	int nZeros = 0; // Số lượng số 0
+	for (int i = 0; i < nBits; i++){
+
+		// Lấy chuỗi bit
+		if (threadIdx.x < size){
+			uint32_t oneBit = (getBin(tp[threadIdx.x]) >> i) & 1;
+			tp[startBitArr + threadIdx.x] = oneBit;
+		}
+		__syncthreads();
+
+		// FIXME: Debug
+		/*if (threadIdx.x == 0){
+			printf("Chuoi bit: ");
+			for (int i = 0; i < size; i++){
+				printf("%d ", tp[startBitArr + i]);
+				if (i == size - 1)
+					printf("\n");
+			}
+		}
+		__syncthreads();*/
+
+		// Set giá trị cho chuỗi bit scan
+		tp[startBitScan + threadIdx.x] = 0;
+		__syncthreads();
+		// Scan chuỗi bit
+		for (int stride = 1; stride < blockDim.x; stride *= 2) {
+			int temp = 0;
+			if (threadIdx.x >= stride) {
+				temp = tp[startBitArr + threadIdx.x - stride] + tp[startBitScan + threadIdx.x - stride];
+			}
+			__syncthreads();
+			if (threadIdx.x >= stride) {
+				tp[startBitScan + threadIdx.x] += temp;
+			}
+			__syncthreads();
+		}
+		__syncthreads();
+		
+		// FIXME: Debug
+		/*if (threadIdx.x == 0){
+			printf("Chuoi bit scan: ");
+			for (int j = 0; j < size; j++){
+				printf("%d ", tp[startBitScan + j]);
+				if (j == size - 1)
+					printf("\n");
+			}
+		}
+		__syncthreads();*/
+
+		// Scatter
+		nZeros = size - tp[startBitScan + size - 1] - tp[startBitArr + size - 1];
+		__syncthreads();
+		int startSortArr = 3 * blockDim.x;
+		tp[startSortArr + threadIdx.x] = tp[threadIdx.x];
+		__syncthreads();
+		if (threadIdx.x < size){
+			uint32_t oneBit = (getBin(tp[startSortArr + threadIdx.x]) >> i) & 1;
+			if (oneBit == 0){
+				int rank = threadIdx.x - tp[startBitScan + threadIdx.x];
+				// printf("data la: %d oneBit la: %d scan la: %d rank la: %d\n",
+				// 		tp[startSortArr + threadIdx.x],
+				// 		oneBit,
+				// 		tp[startBitScan + threadIdx.x],
+				// 		rank);
+				tp[rank] = tp[startSortArr + threadIdx.x];
+			}
+			else{
+				int rank = nZeros + tp[startBitScan + threadIdx.x];
+				// printf("zero la: %d data la: %d oneBit la: %d scan la: %d rank la: %d\n",
+				// 		nZeros,
+				// 		tp[startSortArr + threadIdx.x],
+				// 		oneBit,
+				// 		tp[startBitScan + threadIdx.x],
+				// 		rank);
+				tp[rank] = tp[startSortArr + threadIdx.x];
+			}
+		}
+		__syncthreads();
+		/*if (threadIdx.x == 0){
+			for (int j = 0; j < size; j++){
+				printf("j la: %d ", j);
+				printf("tp[j] la: %d ", tp[startSortArr + j]);
+				uint32_t oneBit = (getBin(tp[startSortArr + j]) >> i) & 1;
+				printf("oneBit la: %d ", oneBit);
+				printf("scan la: %d ", tp[startBitScan + j]);
+				int rank;
+				if (oneBit == 0)
+					rank = j - tp[startBitScan + j];
+				else
+					rank = nZeros + tp[startBitScan + j];
+				printf("Rank la: %d\n", rank);
+				tp[rank] = tp[startSortArr + j];
+			}
+		}
+		__syncthreads();*/
+		// FIXME: Debug
+		/*if (threadIdx.x == 0){
+			printf("So luong zero la: %d\n",nZeros);
+			printf("Chuoi bit sau khi sap xep: ");
+			for (int j = 0; j < size; j++){
+				printf("%d ", tp[j]);
+				if (j == size - 1)
+					printf("\n");
+			}
+		}
+		__syncthreads(); return;*/
+
+		// Chép dữ liệu đã sắp xếp vào mảng có chỉ số startSortArr
+		tp[startSortArr + threadIdx.x] = tp[threadIdx.x];
+		__syncthreads(); 
+	}
 
 	// FIXME: Debug
 	/*if (threadIdx.x == 0){
@@ -379,7 +495,7 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 	__syncthreads();*/
 
 	// Tính chỉ số bắt đầu của từng bộ nBits (bit) trong block
-	int startArrIdx = blockDim.x; // Chỉ số bắt đầu của mảng chứa chỉ-số-bắt-đầu-của-từng-bộ-nBits
+	int startArrIdx = 4 * blockDim.x; // Chỉ số bắt đầu của mảng chứa chỉ-số-bắt-đầu-của-từng-bộ-nBits
 	if (threadIdx.x == 0){
 		int bin = getBin(tp[threadIdx.x]);
 		tp[startArrIdx + bin] = 0;
@@ -403,7 +519,7 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 	__syncthreads();*/
 
 	// Tính số phần tử đứng trước nó theo từng bộ nBits (bit) của các phần tử trong block
-	int startArrEleBef = blockDim.x + nBins; // Chỉ số bắt đầu của mảng chứa số-phần-tử-đứng-trước-nó
+	int startArrEleBef = 4 * blockDim.x + nBins; // Chỉ số bắt đầu của mảng chứa số-phần-tử-đứng-trước-nó
 	int bin = getBin(tp[threadIdx.x]);
 	tp[startArrEleBef + threadIdx.x] = threadIdx.x - tp[startArrIdx + bin];
 	__syncthreads();
@@ -557,7 +673,7 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 		// TODO: Scatter
 		timer.Start();
 		scatterKernel<<<gridSizeHist, blockSizes[0], 
-						(2 * blockSizes[0] + nBins)* sizeof(uint32_t)>>>(d_src, n, d_dst, d_scanHistArrTranpose, nBits, bit);
+						(5 * blockSizes[0] + nBins)* sizeof(uint32_t)>>>(d_src, n, d_dst, d_scanHistArrTranpose, nBits, bit);
 		CHECK(cudaGetLastError());
 		timer.Stop();
 		scatterTime += timer.Elapsed();
@@ -671,7 +787,7 @@ int main(int argc, char **argv)
 
 	// SET UP INPUT SIZE
 	int n = (1 << 24) + 1;
-	n = 1000;
+	n = 1000000;
 	printf("\nInput size: %d\n", n);
 
 	// ALLOCATE MEMORIES
@@ -689,7 +805,7 @@ int main(int argc, char **argv)
 
 	// SET UP NBITS
 	int nBits = 4; // Default
-	nBits = 1;
+	//nBits = 1;
 	if (argc > 1)
 		nBits = atoi(argv[1]);
 	printf("\nNum bits per digit: %d\n", nBits);
