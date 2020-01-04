@@ -315,21 +315,76 @@ __global__ void transposeKernel(int *in, int n, int width, int *out)
 	out[x * (n / width) + y] = in[idx];
 }
 
-__global__ void scatterKernel(uint32_t *in, int n, int numElements, uint32_t *out, 
+__global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 								int *scanHistogramArrayTranspose, 
 								int nBits, int bit)
 {
-	int nBins = 1 << nBits;
-	for (int i = 0; i < numElements; ++i)
-	{
-		int idx = blockIdx.x * numElements + i;
-		if (idx < n)
-		{
-			int rank = scanHistogramArrayTranspose[blockIdx.x * nBins + getBin(in[idx])];
-			atomicAdd(scanHistogramArrayTranspose + blockIdx.x * nBins + getBin(in[idx]), 1);
-			out[rank] = in[idx];
+	// int nBins = 1 << nBits;
+	// for (int i = 0; i < numElements; ++i)
+	// {
+	// 	int idx = blockIdx.x * numElements + i;
+	// 	if (idx < n)
+	// 	{
+	// 		int rank = scanHistogramArrayTranspose[blockIdx.x * nBins + getBin(in[idx])];
+	// 		atomicAdd(scanHistogramArrayTranspose + blockIdx.x * nBins + getBin(in[idx]), 1);
+	// 		out[rank] = in[idx];
+	// 	}
+	// }
+
+	/*
+	Smem sẽ gồm có 3 phần dữ liệu
+		1. blockDim.x phần tử
+		2. 2 ^ nBits phần tử
+		3. blockDim.x phần tử
+	*/
+	int nBins = 1 << nBits; // Số lượng bin
+	// Load dữ liệu từ in vào smem
+	extern __shared__ uint32_t tp[];
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	tp[threadIdx.x] = (idx < n) ? in[idx] : 0;
+	__syncthreads(); 
+
+	// Lấy ra nBits (bit) của các phần tử trong block với chỉ số bit đầu tiên là bit
+
+	// Sắp xếp các phần tử trong block bằng nBits (bit) này
+	// Thử nghiệm bằng bubble sort bằng 1 thread
+	if (threadIdx.x == 0){
+		for (int i=blockDim.x - 1; i >= 1; i--){
+			for (int j=0; j < i; j++){
+				int first = getBin(tp[j]);
+				int second = getBin(tp[j + 1]);
+				if (first > second){
+					uint32_t temp = tp[j];
+					tp[j] = tp[j + 1];
+					tp[j + 1] = temp;
+				}
+			}
 		}
 	}
+
+	// Tính chỉ số bắt đầu của từng bộ nBits (bit) trong block
+	int startArrIdx = blockDim.x; // Chỉ số bắt đầu của mảng chứa chỉ-số-bắt-đầu-của-từng-bộ-nBits
+	if (threadIdx.x == 0){
+		int bin = getBin(tp[threadIdx.x]);
+		tp[startArrIdx + bin] = threadIdx.x;
+	}
+	else{
+		if (getBin(tp[threadIdx.x]) != getBin(tp[threadIdx.x - 1])){
+			tp[startArrIdx + getBin(tp[threadIdx.x])] = threadIdx.x;
+		}
+	}
+	__syncthreads();
+
+	// Tính số phần tử đứng trước nó theo từng bộ nBits (bit) của các phần tử trong block
+	int startArrEleBef = blockDim.x + nBins; // Chỉ số bắt đầu của mảng chứa số-phần-tử-đứng-trước-nó
+	int bin = getBin(tp[threadIdx.x]);
+	tp[startArrEleBef + threadIdx.x] = threadIdx.x - tp[startArrIdx + bin];
+	__syncthreads();
+
+	// Scatter
+	int rank = scanHistogramArrayTranspose[bin * blockDim.x +blockIdx.x] + 
+				tp[startArrEleBef + threadIdx.x];
+	out[rank] = tp[threadIdx.x];
 }
 
 
@@ -435,7 +490,9 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 
 		// TODO: Scatter
 		timer.Start();
-		scatterKernel<<<gridSizeHist, 1>>>(d_src, n, blockSizes[0], d_dst, d_scanHistArrTranpose, nBits, bit);
+		scatterKernel<<<gridSizeHist, blockSizes[0], 
+						(2 * blockSizes[0] + nBins)* sizeof(uint32_t)>>>(d_src, n, d_dst,
+																			d_scanHistArrTranpose, nBits, bit);
 		timer.Stop();
 		scatterTime += timer.Elapsed();
 
@@ -493,7 +550,7 @@ void sort(const uint32_t *in, int n, uint32_t *out, int nBits, int type,
 	else if (type == 1)
 	{
 		printf("\nRadix sort by host\n");
-		sortByHost(in, n, out, nBits, 32);
+		//sortByHost(in, n, out, nBits, 32);
 	}
 	else // use device
 	{
