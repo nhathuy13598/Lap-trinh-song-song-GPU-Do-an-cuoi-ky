@@ -338,18 +338,22 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 		3. blockDim.x phần tử
 	*/
 	int nBins = 1 << nBits; // Số lượng bin
+	int size = blockDim.x; //  Số lượng phần tử trong block
+	if (blockIdx.x == gridDim.x - 1){
+		size = n - (gridDim.x - 1) * blockDim.x;
+	}
 	// Load dữ liệu từ in vào smem
 	extern __shared__ uint32_t tp[];
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	tp[threadIdx.x] = (idx < n) ? in[idx] : 0;
-	__syncthreads(); 
+	__syncthreads();
 
 	// Lấy ra nBits (bit) của các phần tử trong block với chỉ số bit đầu tiên là bit
 
 	// Sắp xếp các phần tử trong block bằng nBits (bit) này
 	// Thử nghiệm bằng bubble sort bằng 1 thread
 	if (threadIdx.x == 0){
-		for (int i=blockDim.x - 1; i >= 1; i--){
+		for (int i = size - 1; i >= 1; i--){
 			for (int j=0; j < i; j++){
 				int first = getBin(tp[j]);
 				int second = getBin(tp[j + 1]);
@@ -361,19 +365,40 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 			}
 		}
 	}
+	__syncthreads();
+
+	// FIXME: Debug
+	/*if (threadIdx.x == 0){
+		for (int i=0; i<size; i++){
+			printf("%d ", tp[i]);
+			if (i == size - 1)
+				printf("\n");
+		}
+	}
+	__syncthreads();*/
 
 	// Tính chỉ số bắt đầu của từng bộ nBits (bit) trong block
 	int startArrIdx = blockDim.x; // Chỉ số bắt đầu của mảng chứa chỉ-số-bắt-đầu-của-từng-bộ-nBits
 	if (threadIdx.x == 0){
 		int bin = getBin(tp[threadIdx.x]);
-		tp[startArrIdx + bin] = threadIdx.x;
+		tp[startArrIdx + bin] = 0;
 	}
-	else{
+	else if (threadIdx.x < size){
 		if (getBin(tp[threadIdx.x]) != getBin(tp[threadIdx.x - 1])){
 			tp[startArrIdx + getBin(tp[threadIdx.x])] = threadIdx.x;
 		}
 	}
 	__syncthreads();
+
+	// FIXME: Debug
+	/*if (threadIdx.x == 0){
+		for (int i=0; i < nBins; i++){
+			printf("%d ", tp[startArrIdx + i]);
+			if (i == nBins - 1)
+				printf("\n");
+		}
+	}
+	__syncthreads();*/
 
 	// Tính số phần tử đứng trước nó theo từng bộ nBits (bit) của các phần tử trong block
 	int startArrEleBef = blockDim.x + nBins; // Chỉ số bắt đầu của mảng chứa số-phần-tử-đứng-trước-nó
@@ -381,10 +406,35 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 	tp[startArrEleBef + threadIdx.x] = threadIdx.x - tp[startArrIdx + bin];
 	__syncthreads();
 
+	// FIXME: Debug
+	/*if (threadIdx.x == 0){
+		for (int i=0; i < size; i++){
+			printf("%d ", tp[startArrEleBef + i]);
+			if (i == size - 1)
+				printf("\n");
+		}
+	}
+	__syncthreads();*/
+
 	// Scatter
-	int rank = scanHistogramArrayTranspose[bin * blockDim.x +blockIdx.x] + 
+	int rank = scanHistogramArrayTranspose[bin * blockDim.x + blockIdx.x] + 
 				tp[startArrEleBef + threadIdx.x];
 	out[rank] = tp[threadIdx.x];
+
+	// FIXME: Debug
+	/*__syncthreads();
+	if (threadIdx.x == 0){
+		for(int i = 0; i < nBins; i++){
+			printf("%d ", scanHistogramArrayTranspose[i]);
+			if(i == nBins - 1)
+				printf("\n");
+		}
+		for (int i=0; i < size; i++){
+			printf("%d ", out[i]);
+			if (i == size - 1)
+				printf("\n");
+		}
+	}*/
 }
 
 
@@ -400,6 +450,7 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 	int in_size = n * sizeof(uint32_t);
 	int out_size = in_size;
 	uint32_t *d_src, *d_dst;
+	//uint32_t *dst = (uint32_t*)malloc(out_size);
 	CHECK(cudaMalloc(&d_src, in_size));
 	CHECK(cudaMalloc(&d_dst, out_size));
 	CHECK(cudaMemcpy(d_src, in, in_size, cudaMemcpyHostToDevice));
@@ -407,8 +458,8 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 	// Allocate another data on device
 	size_t histArr_size = gridSizeHist * nBins * sizeof(int);
 	size_t size_blksum = gridSizeScan * sizeof(int);
-	//int *histArr = (int *)malloc(histArr_size);
-	//int *scanHistArr = (int *)malloc(histArr_size);
+	int *histArr = (int *)malloc(histArr_size);
+	int *scanHistArr = (int *)malloc(histArr_size);
 	int *blkSums = (int *)malloc(size_blksum);
 	int *d_histArr, *d_scanHistArr, *d_blkSums, *d_scanHistArrTranpose;
 	CHECK(cudaMalloc(&d_histArr, histArr_size));
@@ -428,6 +479,7 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 		// TODO: Do histogram
 		timer.Start();
 		histogramKernel<<<gridSizeHist, blockSizes[0]>>>(d_src, n, d_histArr, nBits, bit);
+		CHECK(cudaGetLastError());
 		timer.Stop();
 		histTime += timer.Elapsed();
 
@@ -443,6 +495,7 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 		// TODO: Scan histogram
 		timer.Start();
 		scanBlkKernel<<<gridSizeScan, blockSizes[1], blockSizes[1] * sizeof(int)>>>(d_histArr, gridSizeHist * nBins, d_scanHistArr, d_blkSums);
+		CHECK(cudaGetLastError());
 
 		// copy result to host
 		CHECK(cudaMemcpy(blkSums, d_blkSums, size_blksum, cudaMemcpyDeviceToHost));
@@ -461,6 +514,7 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 		// TODO: Add after scan
 		timer.Start();
 		addBlkKernel<<<gridSizeScan, blockSizes[1]>>>(d_scanHistArr, gridSizeHist * nBins, d_blkSums);
+		CHECK(cudaGetLastError());
 		timer.Stop();
 		addTime += timer.Elapsed();
 
@@ -476,13 +530,14 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 		// TODO: Transpose
 		timer.Start();
 		transposeKernel<<<gridSizeScan, blockSizes[1]>>>(d_scanHistArr, gridSizeHist * nBins, gridSizeHist, d_scanHistArrTranpose);
+		CHECK(cudaGetLastError());
 		timer.Stop();
 		transposeTime += timer.Elapsed();
 
 		// FIXME: Debug
 		/*CHECK(cudaMemcpy(scanHistArr, d_scanHistArrTranpose, histArr_size, cudaMemcpyDeviceToHost));
 		for (int i = 0; i < gridSizeHist * nBins; ++i) {
-		  	printf("%d\t", scanHistArr[i]);
+		  	printf("%d ", scanHistArr[i]);
 			if(i == gridSizeHist * nBins - 1)
 				printf("\n===|===|===|===|===|===|===|===|===|===\n");
 		}*/
@@ -491,8 +546,8 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 		// TODO: Scatter
 		timer.Start();
 		scatterKernel<<<gridSizeHist, blockSizes[0], 
-						(2 * blockSizes[0] + nBins)* sizeof(uint32_t)>>>(d_src, n, d_dst,
-																			d_scanHistArrTranpose, nBits, bit);
+						(2 * blockSizes[0] + nBins)* sizeof(uint32_t)>>>(d_src, n, d_dst, d_scanHistArrTranpose, nBits, bit);
+		CHECK(cudaGetLastError());
 		timer.Stop();
 		scatterTime += timer.Elapsed();
 
@@ -503,7 +558,7 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 			if (i == n - 1)
 				printf("\n===|===|===|===|===|===|===|===|===|===\n");
 		}*/
-		
+		//break;
 		// Swap "src" and "dst"
 		uint32_t *tp = d_src;
 		d_src = d_dst;
@@ -529,6 +584,7 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 	free(blkSums);
 	//free(histArr);
 	//free(scanHistArr);
+	//free(dst);
 }
 
 // Radix sort
@@ -604,7 +660,7 @@ int main(int argc, char **argv)
 
 	// SET UP INPUT SIZE
 	int n = (1 << 24) + 1;
-	//n = 1000;
+	n = 10;
 	printf("\nInput size: %d\n", n);
 
 	// ALLOCATE MEMORIES
@@ -617,11 +673,12 @@ int main(int argc, char **argv)
 	for (int i = 0; i < n; i++)
 		in[i] = rand();
 	// in[i] = rand() % 8;
-	// uint32_t temp[11] = {41,18467,6334,26500,19169,15724,11478,29358,26962,24464,5705}; 
-	// memcpy(in, temp, n * sizeof(uint32_t)); printArray(in, n);
+	uint32_t temp[10] = {3,2,5,7,9,9,8,8,1,1}; 
+	memcpy(in, temp, n * sizeof(uint32_t)); printArray(in, n);
 
 	// SET UP NBITS
 	int nBits = 4; // Default
+	nBits = 1;
 	if (argc > 1)
 		nBits = atoi(argv[1]);
 	printf("\nNum bits per digit: %d\n", nBits);
