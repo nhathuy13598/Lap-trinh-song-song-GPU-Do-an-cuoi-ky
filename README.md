@@ -102,6 +102,21 @@ Vì thầy sẽ đánh giá điểm dựa vào quy trình tối ưu thuật toá
 ##### Cài đặt 
 * File code được cài đặt ở [Parallel_v3](Code%20Version/Parallel_v3.cu)
 * Kết quả: ![Hình ảnh chưa có, bổ sung sau](Report)
-* Nhận xét: Tốc độ tăng lên
+* Nhận xét: ....
 
-
+#### 6.4 Lần tối ưu hóa 4
+##### Phân tích
+* Ở bước này, nhóm sẽ vẫn tối ưu hóa Scatter kernel. Ở phiên bản `Parallel_v3` thì trong Scatter Kernel nhóm sử dụng mảng 
+smem để lưu dữ liệu và kích thước của mảng này không hề nhỏ khi nhóm lưu tới 6 loại mảng.
+Song song với đó là nhóm sử dụng nhiều câu lệnh `__syncthreads()`
+##### Thiết kế
+* Thay vì smem trong Scatter kernel phải lưu 5 mảng khác nhau thì giờ đây nhóm sẽ thiết
+kế lại: 
+    - Phần 1 vẫn sẽ lưu input kích thước `blockDim.x` phần tử
+    - Phần 2 lưu một phần tử giả, gọi là `dummy`, có `1` phần tử
+    - Phần 3 lưu chuỗi nhị phân lấy được, kích thước `blockDim.x` phần tử
+    - Phần 4 lưu chỉ số bắt đầu của mảng sau khi đã sắp xếp, kích thước `2 ^ nBits` phần tử
+##### Cài đặt
+* File code được cài đặt ở [Parallel_v4](Code%20Version/Parallel_v3.cu)
+* Kết quả: ![Hình ảnh chưa có, bổ sung sau](Report)
+* Nhận xét: ....
