@@ -72,9 +72,13 @@ Vì thầy sẽ đánh giá điểm dựa vào quy trình tối ưu thuật toá
 * Nhận xét: Tốc độ tăng lên đáng kể
 #### 5.3 Lần tối ưu hóa 3
 ##### Phân tích
-
+* Ở bước này, nhóm sẽ gán blockSize sao cho tận dụng được tối đa sức mạnh của GPU. Thực tế, bước này sẽ cần làm trước lần tối ưu hóa số 2 nhưng vì nhóm muốn hoàn thiện thuật toán giống như trong bài báo
 ##### Thiết kế
-
+* Nhóm sẽ gán blockSize = Số-thread-tối-đa-trên-một-SM / Số-lượng-block-tối-đa-trên-một-SM
+* Số block tối đa trên một SM có thể phụ thuộc vào Compute Capability của GPU, có thể tìm thấy [tại đây](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#compute-capabilities)
 ##### Cài đặt 
+* File code được cài đặt ở [Parallel_v3](Code%20Version/Parallel_v3.cu)
+* Kết quả: ![Hình ảnh chưa có, bổ sung sau](Report)
+* Nhận xét: Tốc độ tăng lên
 
 
