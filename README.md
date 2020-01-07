@@ -15,6 +15,7 @@ Lập trình song song GPU: Đồ án thuật toán sắp xếp Radix Sort
 4. Cài đặt tuần tự ý tưởng của thuật toán Radix Sort song song trong bài báo của NVIDIA (đây là phiên bản mà lúc sau ta sẽ tập trung song song hóa và tối ưu hóa).
 
 **Đích đến:** Tối ưu gần bằng thuật toán sắp xếp có sẵn trong thư viện Thrust
+
 ## 3. Kế hoạch thực hiện (dự kiến)
 **Ngày vấn đáp:** `10/01/2020`
 
@@ -28,7 +29,29 @@ Lập trình song song GPU: Đồ án thuật toán sắp xếp Radix Sort
 |Viết slide|09/01/2020|09/01/2020||
 |Dự phòng|10/01/2020|10/01/2020||
 
-## 4. Kết quả các baseline + Hình ảnh chụp
+## 4. Họp nhóm và phân công công việc
+* Lần 1:
+    - Thời gian: 10/12/2019
+    - Địa điểm: Qua Skype
+    - Nội dung: Bàn về kế hoạch làm việc nhóm và tạo bảng kế hoạch thực hiện
+* Lần 2:
+    - Thời gian: 26/12/2019
+    - Địa điểm: Ở trường
+    - Nội dung: Bàn về kế hoạch tối ưu hóa, lúc này nhóm vừa hoàn thành thuật toán nhưng thời gian thực thi của hàm scatter còn lâu
+
+|**Công việc**|**Người thực hiện**|  
+|---|:---|  
+|Viết thuật toán Radix Sort tuần tự|Trần Nhật Huy|
+|Viết thuật toán Radix Sort song song|Nguyễn Thành Đạt|
+|Viết thuật toán Radix Sort song song với k = 1|Trần Nhật Huy|
+|Tối ưu thuật toán Radix Sort|Trần Nhật Huy và Nguyễn Thành Đạt|
+|Làm slide|Nguyễn Thành Đạt|
+|File làm việc nhóm|Trần Nhật Huy|
+
+
+
+
+## 5. Kết quả các baseline + Hình ảnh chụp
 #### Baseline 1 ([Version1.cu](Code%20Version/Version1.cu))
 ![Hình 1](Report/Baseline1_2.png)
 #### Baseline 2 ([Version1.cu](Code%20Version/Version1.cu))
@@ -38,7 +61,7 @@ Lập trình song song GPU: Đồ án thuật toán sắp xếp Radix Sort
 #### Baseline 4 ([Version3.cu](Code%20Version/Version3.cu))
 ![Hình 3](Report/Baseline4.png)
 
-## 5. Quy trình tối ưu thuật toán Radix Sort
+## 6. Quy trình tối ưu thuật toán Radix Sort
 Việc tối ưu thuật toán sẽ chia làm 3 bước: `Phân tích`, `Thiết kế` và `Cài đặt`  
 Vì thầy sẽ đánh giá điểm dựa vào quy trình tối ưu thuật toán là có hợp lý hay không hơn là đánh giá vào thời gian chạy của thuật toán nên ***tất cả các bước tối ưu hóa sau khi cài đặt được thuật toán radix sort song song sẽ được ghi tiếp ở file này theo các bước trên***  
 > Việc làm như vậy sẽ dễ dàng trong việc viết báo cáo về sau 
@@ -52,7 +75,7 @@ Vì thầy sẽ đánh giá điểm dựa vào quy trình tối ưu thuật toá
 |Parallel v1|110.776|9.042|1.437|4.189|809.525|1020.13|
 |Thrust| | | | | |?ms| 
 
-#### 5.1. Lần tối ưu hóa 1
+#### 6.1. Lần tối ưu hóa 1
 ##### Phân tích
 * Ta sẽ tiến hành song song hóa các bước ở baseline 4 để giảm tổng thời gian thực hiện
 ##### Thiết kế
@@ -61,7 +84,7 @@ Vì thầy sẽ đánh giá điểm dựa vào quy trình tối ưu thuật toá
 * File code được cài đặt ở [Parallel_v1](Code%20Version/Parallel_v1.cu)  
 * Kết quả: ![Hình ảnh chưa có bổ sung sau](Report/Parallel_v1.png) 
 * Nhận xét: Tốc độ chạy nhanh hơn
-#### 5.2. Lần tối ưu hóa 2
+#### 6.2. Lần tối ưu hóa 2
 ##### Phân tích
 * Hiện tại, thuật toán chậm nhất ở phần Scatter. Lý do là vì nhóm đang sử atomicAdd để tính rank.
 ##### Thiết kế
@@ -70,7 +93,7 @@ Vì thầy sẽ đánh giá điểm dựa vào quy trình tối ưu thuật toá
 * File code được cài đặt ở [Parallel_v2](Code%20Version/Parallel_v2.cu)
 * Kết quả: ![Hình ảnh chưa có bổ sung sau](Report)
 * Nhận xét: Tốc độ tăng lên đáng kể
-#### 5.3 Lần tối ưu hóa 3
+#### 6.3 Lần tối ưu hóa 3
 ##### Phân tích
 * Ở bước này, nhóm sẽ gán blockSize sao cho tận dụng được tối đa sức mạnh của GPU. Thực tế, bước này sẽ cần làm trước lần tối ưu hóa số 2 nhưng vì nhóm muốn hoàn thiện thuật toán giống như trong bài báo
 ##### Thiết kế
