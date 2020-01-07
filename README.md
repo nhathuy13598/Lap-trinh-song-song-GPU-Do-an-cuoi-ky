@@ -63,9 +63,18 @@ Vì thầy sẽ đánh giá điểm dựa vào quy trình tối ưu thuật toá
 * Nhận xét: Tốc độ chạy nhanh hơn
 #### 5.2. Lần tối ưu hóa 2
 ##### Phân tích
-....
+* Hiện tại, thuật toán chậm nhất ở phần Scatter. Lý do là vì nhóm đang sử atomicAdd để tính rank.
 ##### Thiết kế
-....
+* Nhóm sẽ viết lại thuật toán Scatter y như trong bài báo, sử dụng Radix Sort với k = 1 để tính rank của các phần tử trong Block
 ##### Cài đặt 
-....
+* File code được cài đặt ở [Parallel_v2](Code%20Version/Parallel_v2.cu)
+* Kết quả: ![Hình ảnh chưa có bổ sung sau](Report)
+* Nhận xét: Tốc độ tăng lên đáng kể
+#### 5.3 Lần tối ưu hóa 3
+##### Phân tích
+
+##### Thiết kế
+
+##### Cài đặt 
+
 
