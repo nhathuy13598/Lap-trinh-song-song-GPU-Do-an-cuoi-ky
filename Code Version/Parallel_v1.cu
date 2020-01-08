@@ -493,7 +493,7 @@ void sort(const uint32_t *in, int n, uint32_t *out, int nBits, int type,
 	else if (type == 1)
 	{
 		printf("\nRadix sort by host\n");
-		sortByHost(in, n, out, nBits, 32);
+		//sortByHost(in, n, out, nBits, 32);
 	}
 	else // use device
 	{

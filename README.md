@@ -67,12 +67,15 @@ Vì thầy sẽ đánh giá điểm dựa vào quy trình tối ưu thuật toá
 > Việc làm như vậy sẽ dễ dàng trong việc viết báo cáo về sau 
 #### Bảng đo thời gian
 |**Version**|**histogramKernel**|**scanBlkKernel**|**addBlkKernel**|**transposeKernel**|**scatterKernel**|**Total (ms)**| 
-|:---:|:---:|:---:|:---:|:---:|:---:|:---:| 
-|Baseline 1| | | | | |1166.061| 
-|Baseline 2| | | | | |781.464| 
-|Baseline 3| | | | | |5479.868| 
-|Baseline 4 (Tuần tự)| | | | | |23341.660| 
-|Parallel v1|110.776|9.042|1.437|4.189|809.525|1020.13|
+|:---:|:---:|:---:|:---:|:---:|:---:|:---:|  
+|Baseline 1| | | | | |1166.061|  
+|Baseline 2| | | | | |781.464|  
+|Baseline 3| | | | | |5479.868|  
+|Baseline 4 (Tuần tự)| | | | | |23341.660|   
+|Parallel v1|110.776|9.042|1.437|4.189|809.525|1020.13|  
+|Parallel v2|?|?|?|?|?|?|  
+|Parallel v3|?|?|?|?|?|?|  
+|Parallel v4|?|?|?|?|?|?|  
 |Thrust| | | | | |?ms| 
 
 #### 6.1. Lần tối ưu hóa 1
@@ -120,3 +123,13 @@ kế lại:
 * File code được cài đặt ở [Parallel_v4](Code%20Version/Parallel_v3.cu)
 * Kết quả: ![Hình ảnh chưa có, bổ sung sau](Report)
 * Nhận xét: ....
+
+#### 6.5 Lần tối ưu hóa 5
+##### Phân tích
+* Ở lần này nhóm vẫn tiếp tục tối ưu hóa hàm Scatter kernel vì trong hàm này vẫn còn có nhiều 
+câu lệnh `__syncthreads()` dùng để `debug` và chưa load mảng `scanHistogramArrayTranpose` vào `smem`
+##### Thiết kế
+* Ở lần trước thì `smem` gồm 4 phần dữ liệu, bây giờ ta sẽ thêm một phần chứa `scanHistogramArrayTranpose` cho từng block, sẽ có `2 ^ nBits` phần tử
+
+##### Cài đặt
+* 

@@ -325,23 +325,27 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 		2. phần tử dummy có 1 phần tử
 		3. blockDim.x phần tử (Chuỗi nhị phân)
 		4. 2 ^ nBits phần tử (chứa chỉ số bắt đầu)
+		5. 2 ^ nBits phần tử (chứa scanHistogramArrayTranspose cho từng block)
 	*/
 	int nBins = 1 << nBits; // Số lượng bin
 	int size = blockDim.x; //  Số lượng phần tử trong block
 	if (blockIdx.x == gridDim.x - 1){
 		size = n - (gridDim.x - 1) * blockDim.x;
 	}
+	//int startHistArr = 2 * blockDim.x + 1 + nBins;
 	// Load dữ liệu từ in vào smem
 	extern __shared__ uint32_t tp[];
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	tp[threadIdx.x] = (idx < n) ? in[idx] : 0;
+	// Load scanHistogramArrayTranspose vào smem
+	// if (threadIdx.x < nBins){
+	// 	tp[startHistArr + threadIdx.x] = scanHistogramArrayTranspose[blockIdx.x * nBins + threadIdx.x];
+	// }
 	__syncthreads();
 
 	// Lấy ra nBits (bit) của các phần tử trong block với chỉ số bit đầu tiên là bit
 
 	// Sắp xếp các phần tử trong block bằng nBits (bit) này
-	//int startBitArr = blockDim.x; // Chỉ số bắt đầu chuỗi nhị phân
-	//int startBitScan = 2 * blockDim.x; // Chỉ số bắt đầu của mảng scan-chuỗi-nhị-phân
 	int startBitArr = blockDim.x + 1; // Chỉ số bắt đầu chuỗi nhị phân
 	int startBitScan = blockDim.x; // Chỉ số bắt đầu của mảng scan-chuỗi-nhị-phân
 	int nZeros = 0; // Số lượng số 0
@@ -478,7 +482,7 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 	int startArrEleBef = blockDim.x; // Chỉ số bắt đầu của mảng chứa số-phần-tử-đứng-trước-nó
 	int bin = getBin(tp[threadIdx.x]);
 	tp[startArrEleBef + threadIdx.x] = threadIdx.x - tp[startArrIdx + bin];
-	__syncthreads();
+	__syncthreads(); // !CHÚ Ý: Đoạn này chưa hiểu tại sao không bị lỗi
 
 	// FIXME: Debug
 	/*if (threadIdx.x == 0){
@@ -505,6 +509,7 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 	//int rank = scanHistogramArrayTranspose[bin * blockDim.x + blockIdx.x] + tp[startArrEleBef + threadIdx.x];
 	if (threadIdx.x < size){
 		int rank = scanHistogramArrayTranspose[blockIdx.x * nBins + bin] + tp[startArrEleBef + threadIdx.x];
+		//int rank = tp[startHistArr + bin] + tp[startArrEleBef + threadIdx.x]; 
 		out[rank] = tp[threadIdx.x];
 	}
 
@@ -629,7 +634,7 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 		// TODO: Scatter
 		timer.Start();
 		scatterKernel<<<gridSizeHist, blockSizes[0], 
-						(2 * blockSizes[0] + 1 + nBins)* sizeof(uint32_t)>>>(d_src, n, d_dst, d_scanHistArrTranpose, nBits, bit);
+						(2 * blockSizes[0] + 1 + 2 * nBins)* sizeof(uint32_t)>>>(d_src, n, d_dst, d_scanHistArrTranpose, nBits, bit);
 		CHECK(cudaGetLastError());
 		timer.Stop();
 		scatterTime += timer.Elapsed();
