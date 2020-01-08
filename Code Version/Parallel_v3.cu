@@ -812,19 +812,19 @@ int main(int argc, char **argv)
 
 	// DETERMINE BLOCK SIZES
 	int blockSizes[2] = {512, 512}; // One for histogram, one for scan
-	cudaDeviceProp devProv;
-	CHECK(cudaGetDeviceProperties(&devProv, 0));
-	if (devProv.major <= 3 && devProv.minor <= 7)
-	{
-		blockSizes[0] = blockSizes[1] = devProv.maxThreadsPerMultiProcessor / 16;
-	}
-	else if (devProv.major <= 7 && devProv.minor <= 3)
-	{
-		blockSizes[0] = blockSizes[1] = devProv.maxThreadsPerMultiProcessor / 32;
-	}
-	else {
-		blockSizes[0] = blockSizes[1] = devProv.maxThreadsPerMultiProcessor / 16;
-	}
+	// cudaDeviceProp devProv;
+	// CHECK(cudaGetDeviceProperties(&devProv, 0));
+	// if (devProv.major <= 3 && devProv.minor <= 7)
+	// {
+	// 	blockSizes[0] = blockSizes[1] = devProv.maxThreadsPerMultiProcessor / 16;
+	// }
+	// else if (devProv.major <= 7 && devProv.minor <= 3)
+	// {
+	// 	blockSizes[0] = blockSizes[1] = devProv.maxThreadsPerMultiProcessor / 32;
+	// }
+	// else {
+	// 	blockSizes[0] = blockSizes[1] = devProv.maxThreadsPerMultiProcessor / 16;
+	// }
 	if (argc == 4)
 	{
 		blockSizes[0] = atoi(argv[2]);
