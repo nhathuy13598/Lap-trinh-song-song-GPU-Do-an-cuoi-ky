@@ -356,7 +356,7 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 			uint32_t oneBit = (getBin(tp[threadIdx.x]) >> i) & 1;
 			tp[startBitArr + threadIdx.x] = oneBit;
 		}
-		__syncthreads();
+		//__syncthreads();
 
 		// FIXME: Debug
 		/*if (threadIdx.x == 0){
@@ -386,7 +386,7 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 			}
 			__syncthreads();
 		}
-		__syncthreads();
+		//__syncthreads();
 		
 		// FIXME: Debug
 		/*if (threadIdx.x == 0){
@@ -401,10 +401,10 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 
 		// Scatter
 		nZeros = size - tp[startBitScan + size - 1] - tp[startBitArr + size - 1];
-		__syncthreads();
+		//__syncthreads();
 		//int startSortArr = 3 * blockDim.x;
 		//tp[startSortArr + threadIdx.x] = tp[threadIdx.x];
-		__syncthreads();
+		//__syncthreads();
 		if (threadIdx.x < size){
 			// Lấy phần tử trong mảng ra lưu lại
 			uint32_t ele = tp[threadIdx.x];
@@ -482,7 +482,7 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 	int startArrEleBef = blockDim.x; // Chỉ số bắt đầu của mảng chứa số-phần-tử-đứng-trước-nó
 	int bin = getBin(tp[threadIdx.x]);
 	tp[startArrEleBef + threadIdx.x] = threadIdx.x - tp[startArrIdx + bin];
-	__syncthreads(); // !CHÚ Ý: Đoạn này chưa hiểu tại sao không bị lỗi
+	//__syncthreads(); // !CHÚ Ý: Đoạn này chưa hiểu tại sao không bị lỗi
 
 	// FIXME: Debug
 	/*if (threadIdx.x == 0){
