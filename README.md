@@ -134,3 +134,13 @@ câu lệnh `__syncthreads()` dùng để `debug` và chưa load mảng `scanHis
 * File code được cài đặt ở [Parallel_v5](Code%20Version/Parallel_v5.cu)
 * Kết quả: ![Hình ảnh chưa có, bổ sung sau](Report)
 * Nhận xét: ....
+
+#### 6.6 Lần tối ưu hóa 6
+##### Phân tích
+* Ở lần này, nhóm chưa suy nghĩ ra cách nào để tối ưu hàm Scatter kernel nữa. Do đó, nhóm sẽ thực hiện tối ưu ở điểm khác. Tổng thời gian chạy các hàm kernel chiếm phần lớn thời gian thực thi nhưng thời gian còn nằm ở những phần không thuộc các hàm kernel và nhóm sẽ tối ưu các hàm cấp phát bộ nhớ xem có giảm tổng thời gian thực thi hay không
+##### Thiết kế
+* Ở phần cấp phát bộ nhớ, hiện tại thì nhóm đang lãng phí tài nguyên khi có thể tái sử dụng `d_histArr` thay vì tạo `d_scanHistArrTranpose`
+##### Cài đặt
+* File code được cài đặt ở [Parallel_v6](Code%20Version/Parallel_v5.cu)
+* Kết quả: ![Hình ảnh chưa có, bổ sung sau](Report)
+* Nhận xét: ....
