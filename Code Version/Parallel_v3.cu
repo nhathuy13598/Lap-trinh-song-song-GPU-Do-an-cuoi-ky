@@ -337,8 +337,8 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 		2. blockDim.x phần tử (dữ liệu nhị phân)
 		3. blockDim.x phần tử (scan chuỗi nhị phân)
 		4. blockDim.x phần tử (Chứa dữ liệu sắp xếp)
-		4. 2 ^ nBits phần tử (chứa chỉ số bắt đầu)
-		5. blockDim.x phần tử (chứa số lượng phần tử trước nó)
+		5. 2 ^ nBits phần tử (chứa chỉ số bắt đầu)
+		6. blockDim.x phần tử (chứa số lượng phần tử trước nó)
 	*/
 	int nBins = 1 << nBits; // Số lượng bin
 	int size = blockDim.x; //  Số lượng phần tử trong block

@@ -120,7 +120,7 @@ kế lại:
     - Phần 3 lưu chuỗi nhị phân lấy được, kích thước `blockDim.x` phần tử
     - Phần 4 lưu chỉ số bắt đầu của mảng sau khi đã sắp xếp, kích thước `2 ^ nBits` phần tử
 ##### Cài đặt
-* File code được cài đặt ở [Parallel_v4](Code%20Version/Parallel_v3.cu)
+* File code được cài đặt ở [Parallel_v4](Code%20Version/Parallel_v4.cu)
 * Kết quả: ![Hình ảnh chưa có, bổ sung sau](Report)
 * Nhận xét: ....
 
@@ -129,7 +129,8 @@ kế lại:
 * Ở lần này nhóm vẫn tiếp tục tối ưu hóa hàm Scatter kernel vì trong hàm này vẫn còn có nhiều 
 câu lệnh `__syncthreads()` dùng để `debug` và chưa load mảng `scanHistogramArrayTranpose` vào `smem`
 ##### Thiết kế
-* Ở lần trước thì `smem` gồm 4 phần dữ liệu, bây giờ ta sẽ thêm một phần chứa `scanHistogramArrayTranpose` cho từng block, sẽ có `2 ^ nBits` phần tử
-
+* Ở lần trước thì `smem` gồm 4 phần dữ liệu, bây giờ ta sẽ thêm một phần chứa `scanHistogramArrayTranpose` cho từng block, sẽ có `2 ^ nBits` phần tử. Khi chép dữ liệu cần lưu ý rằng số thread có thể sẽ nhỏ hơn số `nBins`
 ##### Cài đặt
-* 
+* File code được cài đặt ở [Parallel_v5](Code%20Version/Parallel_v5.cu)
+* Kết quả: ![Hình ảnh chưa có, bổ sung sau](Report)
+* Nhận xét: ....
