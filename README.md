@@ -141,6 +141,16 @@ câu lệnh `__syncthreads()` dùng để `debug` và chưa load mảng `scanHis
 ##### Thiết kế
 * Ở phần cấp phát bộ nhớ, hiện tại thì nhóm đang lãng phí tài nguyên khi có thể tái sử dụng `d_histArr` thay vì tạo `d_scanHistArrTranpose`
 ##### Cài đặt
-* File code được cài đặt ở [Parallel_v6](Code%20Version/Parallel_v5.cu)
+* File code được cài đặt ở [Parallel_v6](Code%20Version/Parallel_v6.cu)
+* Kết quả: ![Hình ảnh chưa có, bổ sung sau](Report)
+* Nhận xét: ....
+
+#### 6.7 Lần tối ưu hóa 7
+##### Phân tích
+* Với các phiên bản trước thì kernel tính hist sẽ sử dụng `atomicAdd` trên `GMEM` nên có tốc độ chậm
+##### Thiết kế
+* Nhóm sẽ tiến hành tối ưu kernel tính hist bằng cách sử dụng `atomicAdd` trên `SMEM`
+##### Cài đặt
+* File code được cài đặt ở [Parallel_v7](Code%20Version/Parallel_v7.cu)
 * Kết quả: ![Hình ảnh chưa có, bổ sung sau](Report)
 * Nhận xét: ....
