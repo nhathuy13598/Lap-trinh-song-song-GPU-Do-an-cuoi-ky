@@ -415,11 +415,13 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 		// Scatter
 		nZeros = size - tp[startBitScan + size - 1] - tp[startBitArr + size - 1];
 		
+		// Lấy phần tử trong mảng ra lưu lại
+		uint32_t ele;
 		if (threadIdx.x < size){
-			// Lấy phần tử trong mảng ra lưu lại
 			uint32_t ele = tp[threadIdx.x];
-			__syncthreads();
-			
+		}
+		__syncthreads();
+		if (threadIdx.x < size){
 			uint32_t oneBit = (getBin(ele) >> i) & 1;
 			if (oneBit == 0){
 				int rank = threadIdx.x - tp[startBitScan + threadIdx.x];
