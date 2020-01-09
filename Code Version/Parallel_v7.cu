@@ -431,7 +431,7 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 		// Lấy phần tử trong mảng ra lưu lại
 		uint32_t ele;
 		if (threadIdx.x < size){
-			uint32_t ele = tp[threadIdx.x];
+			ele = tp[threadIdx.x];
 		}
 		__syncthreads();
 		if (threadIdx.x < size){
