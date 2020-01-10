@@ -559,6 +559,145 @@ __global__ void sortBlock(uint32_t *in, int n, int nBits, int bit){
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	tp[threadIdx.x] = (idx < n) ? in[idx] : 0;
 	__syncthreads();
+	
+	// Lấy ra nBits (bit) của các phần tử trong block với chỉ số bit đầu tiên là bit
+
+	// Sắp xếp các phần tử trong block bằng nBits (bit) này
+	int startBitArr = blockDim.x + 1; // Chỉ số bắt đầu chuỗi nhị phân
+	int startBitScan = blockDim.x; // Chỉ số bắt đầu của mảng scan-chuỗi-nhị-phân
+	int nZeros = 0; // Số lượng số 0
+	for (int i = 0; i < nBits; i++){
+
+		// Lấy chuỗi bit
+		if (threadIdx.x < size){
+			uint32_t oneBit = (getBin(tp[threadIdx.x]) >> i) & 1;
+			tp[startBitArr + threadIdx.x] = oneBit;
+		}
+
+		// Set giá trị cho chuỗi bit scan
+		tp[blockDim.x] = 0;
+		__syncthreads();
+		// Scan chuỗi bit
+		for (int stride = 1; stride < size; stride *= 2) {
+			int temp = 0;
+			if (threadIdx.x >= stride && threadIdx.x < size) {
+				temp = tp[startBitScan + threadIdx.x - stride];
+			}
+			__syncthreads();
+			if (threadIdx.x >= stride && threadIdx.x < size) {
+				tp[startBitScan + threadIdx.x] += temp;
+			}
+			__syncthreads();
+		}
+
+		// Scatter
+		nZeros = size - tp[startBitScan + size - 1] - tp[startBitArr + size - 1];
+		
+		// Lấy phần tử trong mảng ra lưu lại
+		uint32_t ele;
+		if (threadIdx.x < size){
+			ele = tp[threadIdx.x];
+		}
+		__syncthreads();
+		if (threadIdx.x < size){
+			uint32_t oneBit = (getBin(ele) >> i) & 1;
+			if (oneBit == 0){
+				int rank = threadIdx.x - tp[startBitScan + threadIdx.x];
+				tp[rank] = ele;
+			}
+			else{
+				int rank = nZeros + tp[startBitScan + threadIdx.x];
+				tp[rank] = ele;
+			}
+		}
+	}
+	__syncthreads();
+	if (threadIdx.x < size){
+		in[idx] = tp[threadIdx.x];
+	}
+	if (threadIdx.x == 0){
+		printf("Chuoi bit sau khi sap xep: ");
+		for (int i=0; i<size; i++){
+			printf("%d ", tp[i]);
+		}
+		printf("\n");
+	}
+}
+
+__global__ void scatterBlock(uint32_t *in, int n, uint32_t* out, int *scanHistogramArrayTranspose, int nBits, int bit){
+	/*
+	Smem sẽ gồm có ? phần dữ liệu
+		1. blockDim.x phần tử (dữ liệu input)
+		2. blockDim.x phần tử (chứa số lượng phần tử đứng trước nó)
+		2. 2 ^ nBits phần tử (chứa chỉ số bắt đầu)
+		3. 2 ^ nBits phần tử (chứa scanHistogramArrayTranspose cho từng block)
+	*/
+	int nBins = 1 << nBits; // Số lượng bin
+	int size = blockDim.x; //  Số lượng phần tử trong block
+	if (blockIdx.x == gridDim.x - 1){
+		size = n - (gridDim.x - 1) * blockDim.x;
+	}
+
+	// Load dữ liệu từ in vào smem
+	extern __shared__ uint32_t tp[];
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	tp[threadIdx.x] = (idx < n) ? in[idx] : 0;
+
+	// Load scanHistogramArrayTranspose vào smem
+	// Số thread có thể ít hơn số bin
+	int startHistArr = 2 * blockDim.x + nBins;
+	for (int i = 0; i < nBins; i += blockDim.x){
+		if (threadIdx.x + i < nBins){
+			tp[startHistArr + threadIdx.x + i] = scanHistogramArrayTranspose[blockIdx.x * nBins + threadIdx.x + i];
+		}
+	}
+	__syncthreads();
+
+	// Tính chỉ số bắt đầu của từng bộ nBits (bit) trong block
+	int startArrIdx = 2 * blockDim.x; // Chỉ số bắt đầu của mảng chứa chỉ-số-bắt-đầu-của-từng-bộ-nBits
+	if (threadIdx.x == 0){
+		int bin = getBin(tp[threadIdx.x]);
+		tp[startArrIdx + bin] = 0;
+	}
+	else if (threadIdx.x < size){
+		if (getBin(tp[threadIdx.x]) != getBin(tp[threadIdx.x - 1])){
+			tp[startArrIdx + getBin(tp[threadIdx.x])] = threadIdx.x;
+		}
+	}
+	__syncthreads();
+
+	// Tính số phần tử đứng trước nó theo từng bộ nBits (bit) của các phần tử trong block
+	int startArrEleBef = blockDim.x; // Chỉ số bắt đầu của mảng chứa số-phần-tử-đứng-trước-nó
+	int bin = getBin(tp[threadIdx.x]);
+	tp[startArrEleBef + threadIdx.x] = threadIdx.x - tp[startArrIdx + bin];
+	__syncthreads(); // !CHÚ Ý: Đoạn này chưa hiểu tại sao không bị lỗi
+
+	// Scatter
+	if (threadIdx.x < size){
+		int rank = scanHistogramArrayTranspose[blockIdx.x * nBins + bin] + tp[startArrEleBef + threadIdx.x];
+		//int rank = tp[startHistArr + bin] + tp[startArrEleBef + threadIdx.x]; 
+		out[rank] = tp[threadIdx.x];
+	}
+}
+
+__global__ void sortBlock1(uint32_t *in, int n, uint32_t *out, int *scanHistogramArrayTranspose, int nBits, int bit){
+	/*
+	Smem sẽ gồm có ? phần dữ liệu
+		1. blockDim.x phần tử (dữ liệu input)
+		2. phần tử dummy có 1 phần tử
+		3. blockDim.x phần tử (Chuỗi nhị phân)
+	*/
+	int nBins = 1 << nBits; // Số lượng bin
+	int size = blockDim.x; //  Số lượng phần tử trong block
+	if (blockIdx.x == gridDim.x - 1){
+		size = n - (gridDim.x - 1) * blockDim.x;
+	}
+
+	// Load dữ liệu từ in vào smem
+	extern __shared__ uint32_t tp[];
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	tp[threadIdx.x] = (idx < n) ? in[idx] : 0;
+	__syncthreads();
 	// Lấy ra nBits (bit) của các phần tử trong block với chỉ số bit đầu tiên là bit
 
 	// Sắp xếp các phần tử trong block bằng nBits (bit) này
@@ -616,7 +755,7 @@ __global__ void sortBlock(uint32_t *in, int n, int nBits, int bit){
 	}
 }
 
-__global__ void scatterBlock(uint32_t *in, int n, uint32_t *out, int *scanHistogramArrayTranspose, int nBits, int bit){
+__global__ void scatterBlock1(uint32_t *in, int n, uint32_t *out, int *scanHistogramArrayTranspose, int nBits, int bit){
 	/*
 	Smem sẽ gồm có ? phần dữ liệu
 		1. blockDim.x phần tử (dữ liệu input)
@@ -778,10 +917,17 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 		timer.Start();
 		// scatterKernel<<<gridSizeHist, blockSizes[0], 
 		// 				(2 * blockSizes[0] + 1 + 2 * nBins)* sizeof(uint32_t)>>>(d_src, n, d_dst, d_histArr, nBits, bit);
-		sortBlock<<<gridSizeHist, blockSizes[0], 
-						(2 * blockSizes[0] + 1)* sizeof(uint32_t)>>>(d_src, n, nBits, bit);
+		// sortBlock<<<gridSizeHist, blockSizes[0], (2 * blockSizes[0] + 1) * sizeof(uint32_t)>>>
+		// 				(d_src, n, nBits, bit);
+		// CHECK(cudaGetLastError());
+		// cudaDeviceSynchronize();
+		// scatterBlock<<<gridSizeHist, blockSizes[0], (2 * blockSizes[0] + 2 * nBins) * sizeof(uint32_t)>>>
+		// 				(d_src, n, d_dst, d_histArr, nBits, bit);
+		// CHECK(cudaGetLastError());
+		sortBlock1<<<gridSizeHist, blockSizes[0], 
+						(2 * blockSizes[0] + 1)* sizeof(uint32_t)>>>(d_src, n, d_dst, d_histArr, nBits, bit);
 		CHECK(cudaGetLastError());
-		scatterBlock<<<gridSizeHist, blockSizes[0], 
+		scatterBlock1<<<gridSizeHist, blockSizes[0], 
 						(2 * blockSizes[0] + 2 * nBins)* sizeof(uint32_t)>>>(d_src, n, d_dst, d_histArr, nBits, bit);
 		CHECK(cudaGetLastError());
 		timer.Stop();

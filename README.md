@@ -157,3 +157,13 @@ câu lệnh `__syncthreads()` dùng để `debug` và chưa load mảng `scanHis
 * File code được cài đặt ở [Parallel_v7](Code%20Version/Parallel_v7.cu)
 * Kết quả: ![Hình ảnh chưa có, bổ sung sau](Report/parallel_version7.png)
 * Nhận xét: Tốc độ chạy tăng lên
+
+#### 6.8 Lần tối ưu hóa 8
+##### Phân tích
+* Hàm `Scatter Kernel` hiện tại đang vừa `sort` với `scatter` trong một hàm. Do đó, hàm này đang sử dụng rất nhiều `smem` để lưu trữ mặc dù nhóm đã có tối ưu phần này.
+##### Thiết kế
+* Nhóm sẽ tách `Scatter Kernel` làm 2 hàm riêng biệt là `sortBlock` với `scatterBlock`. Phần code thì vẫn tương tự như `Scatter Kernel` nhưng nhóm muốn thử nghiệm xem nó có nhanh hơn hay không
+##### Cài đặt
+* File code được cài đặt ở [Parallel_v8](Code%20Version/Parallel_v8.cu)
+* Kết quả: ![Hình ảnh chưa có, bổ sung sau](Report/parallel_version8.png)
+* Nhận xét: ....
