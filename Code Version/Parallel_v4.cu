@@ -325,7 +325,6 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 		2. phần tử dummy có 1 phần tử
 		3. blockDim.x phần tử (Chuỗi nhị phân)
 		4. 2 ^ nBits phần tử (chứa chỉ số bắt đầu)
-		5. 2 ^ nBits phần tử (chứa scanHistogramArrayTranspose cho từng block)
 	*/
 	int nBins = 1 << nBits; // Số lượng bin
 	int size = blockDim.x; //  Số lượng phần tử trong block
@@ -336,31 +335,13 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 	extern __shared__ uint32_t tp[];
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	tp[threadIdx.x] = (idx < n) ? in[idx] : 0;
-	// Load scanHistogramArrayTranspose vào smem
-	// Số thread có thể ít hơn số bin
-	int startHistArr = 2 * blockDim.x + 1 + nBins;
-	// if (threadIdx.x < nBins){
-	// 	tp[startHistArr + threadIdx.x] = scanHistogramArrayTranspose[blockIdx.x * nBins + threadIdx.x];
-	// }
-	for (int i = 0; i < nBins; i += blockDim.x){
-		if (threadIdx.x + i < nBins){
-			tp[startHistArr + threadIdx.x + i] = scanHistogramArrayTranspose[blockIdx.x * nBins + threadIdx.x + i];
-		}
-	}
 	__syncthreads();
-	// FIXME: Debug
-	/*if (threadIdx.x == 0){
-		printf("Mang scan Hist: \n");
-		for (int i = 0; i < nBins; i++){
-			printf("%d %d\n", tp[startHistArr + i], scanHistogramArrayTranspose[blockIdx.x * nBins + threadIdx.x]);
-			if (i == nBins - 1)
-				printf("\n");
-		}
-	}
-	__syncthreads();*/
+
 	// Lấy ra nBits (bit) của các phần tử trong block với chỉ số bit đầu tiên là bit
 
 	// Sắp xếp các phần tử trong block bằng nBits (bit) này
+	//int startBitArr = blockDim.x; // Chỉ số bắt đầu chuỗi nhị phân
+	//int startBitScan = 2 * blockDim.x; // Chỉ số bắt đầu của mảng scan-chuỗi-nhị-phân
 	int startBitArr = blockDim.x + 1; // Chỉ số bắt đầu chuỗi nhị phân
 	int startBitScan = blockDim.x; // Chỉ số bắt đầu của mảng scan-chuỗi-nhị-phân
 	int nZeros = 0; // Số lượng số 0
@@ -371,7 +352,7 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 			uint32_t oneBit = (getBin(tp[threadIdx.x]) >> i) & 1;
 			tp[startBitArr + threadIdx.x] = oneBit;
 		}
-		//__syncthreads();
+		__syncthreads();
 
 		// FIXME: Debug
 		/*if (threadIdx.x == 0){
@@ -385,12 +366,14 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 		__syncthreads();*/
 
 		// Set giá trị cho chuỗi bit scan
+		//tp[startBitScan + threadIdx.x] = 0;
 		tp[blockDim.x] = 0;
 		__syncthreads();
 		// Scan chuỗi bit
 		for (int stride = 1; stride < size; stride *= 2) {
 			int temp = 0;
 			if (threadIdx.x >= stride && threadIdx.x < size) {
+				//temp = tp[startBitArr + threadIdx.x - stride] + tp[startBitScan + threadIdx.x - stride];
 				temp = tp[startBitScan + threadIdx.x - stride];
 			}
 			__syncthreads();
@@ -399,7 +382,7 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 			}
 			__syncthreads();
 		}
-		//__syncthreads();
+		__syncthreads();
 		
 		// FIXME: Debug
 		/*if (threadIdx.x == 0){
@@ -414,21 +397,30 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 
 		// Scatter
 		nZeros = size - tp[startBitScan + size - 1] - tp[startBitArr + size - 1];
-		
-		// Lấy phần tử trong mảng ra lưu lại
+		__syncthreads();
+		//int startSortArr = 3 * blockDim.x;
+		//tp[startSortArr + threadIdx.x] = tp[threadIdx.x];
+		__syncthreads();
 		uint32_t ele;
 		if (threadIdx.x < size){
+			// Lấy phần tử trong mảng ra lưu lại
 			ele = tp[threadIdx.x];
 		}
 		__syncthreads();
 		if (threadIdx.x < size){
+			// Lấy phần tử trong mảng ra lưu lại
+			uint32_t ele = tp[threadIdx.x];
+			__syncthreads();
+			//uint32_t oneBit = (getBin(tp[startSortArr + threadIdx.x]) >> i) & 1;
 			uint32_t oneBit = (getBin(ele) >> i) & 1;
 			if (oneBit == 0){
 				int rank = threadIdx.x - tp[startBitScan + threadIdx.x];
+				//tp[rank] = tp[startSortArr + threadIdx.x];
 				tp[rank] = ele;
 			}
 			else{
 				int rank = nZeros + tp[startBitScan + threadIdx.x];
+				//tp[rank] = tp[startSortArr + threadIdx.x];
 				tp[rank] = ele;
 			}
 		}
@@ -445,6 +437,10 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 			}
 		}
 		__syncthreads(); return;*/
+
+		// Chép dữ liệu đã sắp xếp vào mảng có chỉ số startSortArr
+		//tp[startSortArr + threadIdx.x] = tp[threadIdx.x];
+		//__syncthreads(); 
 	}
 
 	// FIXME: Debug
@@ -459,6 +455,7 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 	__syncthreads();*/
 
 	// Tính chỉ số bắt đầu của từng bộ nBits (bit) trong block
+	//int startArrIdx = 4 * blockDim.x; // Chỉ số bắt đầu của mảng chứa chỉ-số-bắt-đầu-của-từng-bộ-nBits
 	int startArrIdx = 2 * blockDim.x + 1; // Chỉ số bắt đầu của mảng chứa chỉ-số-bắt-đầu-của-từng-bộ-nBits
 	if (threadIdx.x == 0){
 		int bin = getBin(tp[threadIdx.x]);
@@ -483,10 +480,11 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 	__syncthreads();*/
 
 	// Tính số phần tử đứng trước nó theo từng bộ nBits (bit) của các phần tử trong block
+	//int startArrEleBef = 4 * blockDim.x + nBins; // Chỉ số bắt đầu của mảng chứa số-phần-tử-đứng-trước-nó
 	int startArrEleBef = blockDim.x; // Chỉ số bắt đầu của mảng chứa số-phần-tử-đứng-trước-nó
 	int bin = getBin(tp[threadIdx.x]);
 	tp[startArrEleBef + threadIdx.x] = threadIdx.x - tp[startArrIdx + bin];
-	//__syncthreads(); // !CHÚ Ý: Đoạn này chưa hiểu tại sao không bị lỗi
+	__syncthreads();
 
 	// FIXME: Debug
 	/*if (threadIdx.x == 0){
@@ -510,9 +508,9 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 	}*/
 
 	// Scatter
+	//int rank = scanHistogramArrayTranspose[bin * blockDim.x + blockIdx.x] + tp[startArrEleBef + threadIdx.x];
 	if (threadIdx.x < size){
-		//int rank = scanHistogramArrayTranspose[blockIdx.x * nBins + bin] + tp[startArrEleBef + threadIdx.x];
-		int rank = tp[startHistArr + bin] + tp[startArrEleBef + threadIdx.x]; 
+		int rank = scanHistogramArrayTranspose[blockIdx.x * nBins + bin] + tp[startArrEleBef + threadIdx.x];
 		out[rank] = tp[threadIdx.x];
 	}
 
@@ -637,7 +635,7 @@ void sortByDevice(const uint32_t *in, int n, uint32_t *out, int nBits, int *bloc
 		// TODO: Scatter
 		timer.Start();
 		scatterKernel<<<gridSizeHist, blockSizes[0], 
-						(2 * blockSizes[0] + 1 + 2 * nBins)* sizeof(uint32_t)>>>(d_src, n, d_dst, d_scanHistArrTranpose, nBits, bit);
+						(2 * blockSizes[0] + 1 + nBins)* sizeof(uint32_t)>>>(d_src, n, d_dst, d_scanHistArrTranpose, nBits, bit);
 		CHECK(cudaGetLastError());
 		timer.Stop();
 		scatterTime += timer.Elapsed();
@@ -752,7 +750,6 @@ int main(int argc, char **argv)
 	// SET UP INPUT SIZE
 	int n = (1 << 24) + 1;
 	//n = 1000000;
-	//n = 10;
 	printf("\nInput size: %d\n", n);
 
 	// ALLOCATE MEMORIES
@@ -766,8 +763,7 @@ int main(int argc, char **argv)
 		in[i] = rand();
 	// in[i] = rand() % 8;
 	//uint32_t temp[10] = {3,2,5,7,9,9,8,8,1,1}; 
-	//memcpy(in, temp, n * sizeof(uint32_t)); 
-	//printArray(in, n);
+	//memcpy(in, temp, n * sizeof(uint32_t)); printArray(in, n);
 
 	// SET UP NBITS
 	int nBits = 4; // Default
@@ -778,19 +774,19 @@ int main(int argc, char **argv)
 
 	// DETERMINE BLOCK SIZES
 	int blockSizes[2] = {512, 512}; // One for histogram, one for scan
-	// cudaDeviceProp devProv;
-	// CHECK(cudaGetDeviceProperties(&devProv, 0));
-	// if (devProv.major <= 3 && devProv.minor <= 7)
-	// {
-	// 	blockSizes[0] = blockSizes[1] = devProv.maxThreadsPerMultiProcessor / 16;
-	// }
-	// else if (devProv.major <= 7 && devProv.minor <= 3)
-	// {
-	// 	blockSizes[0] = blockSizes[1] = devProv.maxThreadsPerMultiProcessor / 32;
-	// }
-	// else {
-	// 	blockSizes[0] = blockSizes[1] = devProv.maxThreadsPerMultiProcessor / 16;
-	// }
+	cudaDeviceProp devProv;
+	CHECK(cudaGetDeviceProperties(&devProv, 0));
+	if (devProv.major <= 3 && devProv.minor <= 7)
+	{
+		blockSizes[0] = blockSizes[1] = devProv.maxThreadsPerMultiProcessor / 16;
+	}
+	else if (devProv.major <= 7 && devProv.minor <= 3)
+	{
+		blockSizes[0] = blockSizes[1] = devProv.maxThreadsPerMultiProcessor / 32;
+	}
+	else {
+		blockSizes[0] = blockSizes[1] = devProv.maxThreadsPerMultiProcessor / 16;
+	}
 	if (argc == 4)
 	{
 		blockSizes[0] = atoi(argv[2]);
