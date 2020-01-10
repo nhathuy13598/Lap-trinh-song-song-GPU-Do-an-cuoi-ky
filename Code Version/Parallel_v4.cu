@@ -408,9 +408,6 @@ __global__ void scatterKernel(uint32_t *in, int n, uint32_t *out,
 		}
 		__syncthreads();
 		if (threadIdx.x < size){
-			// Lấy phần tử trong mảng ra lưu lại
-			uint32_t ele = tp[threadIdx.x];
-			__syncthreads();
 			//uint32_t oneBit = (getBin(tp[startSortArr + threadIdx.x]) >> i) & 1;
 			uint32_t oneBit = (getBin(ele) >> i) & 1;
 			if (oneBit == 0){
