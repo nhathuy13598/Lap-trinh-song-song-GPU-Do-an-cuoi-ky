@@ -53,13 +53,13 @@ Lập trình song song GPU: Đồ án thuật toán sắp xếp Radix Sort
 
 ## 5. Kết quả các baseline + Hình ảnh chụp
 #### Baseline 1 ([Version1.cu](Code%20Version/Version1.cu))
-![Hình 1](Report/Baseline1_2.png)
+![Hình 1](Report/Version1.png)
 #### Baseline 2 ([Version1.cu](Code%20Version/Version1.cu))
-![Hình 1](Report/Baseline1_2.png)
+![Hình 1](Report/Version1.png)
 #### Baseline 3 ([Version2.cu](Code%20Version/Version2.cu))
-![Hình 2](Report/Baseline3.png)
+![Hình 2](Report/Version2.png)
 #### Baseline 4 ([Version3.cu](Code%20Version/Version3.cu))
-![Hình 3](Report/Baseline4.png)
+![Hình 3](Report/Version3.png)
 
 ## 6. Quy trình tối ưu thuật toán Radix Sort
 Việc tối ưu thuật toán sẽ chia làm 3 bước: `Phân tích`, `Thiết kế` và `Cài đặt`  
@@ -68,15 +68,18 @@ Vì thầy sẽ đánh giá điểm dựa vào quy trình tối ưu thuật toá
 #### Bảng đo thời gian
 |**Version**|**histogramKernel**|**scanBlkKernel**|**addBlkKernel**|**transposeKernel**|**scatterKernel**|**Total (ms)**| 
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:|  
-|Baseline 1| | | | | |1166.061|  
-|Baseline 2| | | | | |781.464|  
-|Baseline 3| | | | | |5479.868|  
-|Baseline 4 (Tuần tự)| | | | | |23341.660|   
-|Parallel v1|110.776|9.042|1.437|4.189|809.525|1020.13|  
-|Parallel v2|?|?|?|?|?|?|  
-|Parallel v3|?|?|?|?|?|?|  
-|Parallel v4|?|?|?|?|?|?|  
-|Thrust| | | | | |?ms| 
+|Baseline 1| | | | | |852.525|  
+|Baseline 2| | | | | |561.608|  
+|Baseline 3| | | | | |1734.354|  
+|Baseline 4 (Tuần tự)| | | | | |19602.135|   
+|Parallel v1|13.332|0.782|0.179|0.529|117.443|171.905|  
+|Parallel v2|13.324|0.780|0.179|0.531|73.052|128.528|  
+|Parallel v3|13.504|0.738|0.174|0.514|70.114|123.828|  
+|Parallel v4|13.327|0.762|0.175|0.529|59.814|113.641|  
+|Parallel v5|13.318|0.769|0.181|0.529|60.569|114.792|  
+|Parallel v6|13.324|0.761|0.179|0.531|60.1|113.534|  
+|Parallel v7|4.457|0.777|0.18|0.53|59.952|104.299|  
+|Thrust| | | | | |44.17| 
 
 #### 6.1. Lần tối ưu hóa 1
 ##### Phân tích
@@ -85,7 +88,7 @@ Vì thầy sẽ đánh giá điểm dựa vào quy trình tối ưu thuật toá
 * Thuật toán sẽ giống như được học trên lớp. Ở bước histogramKernel thì sau khi làm xong thì sẽ lưu xuống mảng 2 chiều với mỗi cột sẽ là một histogram cho dễ scan. Sau khi scan, ta sẽ chuyển vị lại cho dễ làm các bước sau. Ở bản này, bước scatter sẽ dùng một thread duy nhất trong block để chạy vì nhóm chưa tìm ra cách song song hóa.
 ##### Cài đặt 
 * File code được cài đặt ở [Parallel_v1](Code%20Version/Parallel_v1.cu)  
-* Kết quả: ![Hình ảnh chưa có bổ sung sau](Report/Parallel_v1.png) 
+* Kết quả: ![Hình ảnh chưa có bổ sung sau](Report/parallel_version1.png) 
 * Nhận xét: Tốc độ chạy nhanh hơn
 #### 6.2. Lần tối ưu hóa 2
 ##### Phân tích
@@ -94,7 +97,7 @@ Vì thầy sẽ đánh giá điểm dựa vào quy trình tối ưu thuật toá
 * Nhóm sẽ viết lại thuật toán Scatter y như trong bài báo, sử dụng Radix Sort với k = 1 để tính rank của các phần tử trong Block
 ##### Cài đặt 
 * File code được cài đặt ở [Parallel_v2](Code%20Version/Parallel_v2.cu)
-* Kết quả: ![Hình ảnh chưa có bổ sung sau](Report)
+* Kết quả: ![Hình ảnh chưa có bổ sung sau](Report/parallel_version2.png)
 * Nhận xét: Tốc độ tăng lên đáng kể
 #### 6.3 Lần tối ưu hóa 3
 ##### Phân tích
@@ -104,8 +107,8 @@ Vì thầy sẽ đánh giá điểm dựa vào quy trình tối ưu thuật toá
 * Số block tối đa trên một SM có thể phụ thuộc vào Compute Capability của GPU, có thể tìm thấy [tại đây](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#compute-capabilities)
 ##### Cài đặt 
 * File code được cài đặt ở [Parallel_v3](Code%20Version/Parallel_v3.cu)
-* Kết quả: ![Hình ảnh chưa có, bổ sung sau](Report)
-* Nhận xét: ....
+* Kết quả: ![Hình ảnh chưa có, bổ sung sau](Report/parallel_version3.png)
+* Nhận xét: Tốc độ chạy tăng lên
 
 #### 6.4 Lần tối ưu hóa 4
 ##### Phân tích
@@ -121,8 +124,8 @@ kế lại:
     - Phần 4 lưu chỉ số bắt đầu của mảng sau khi đã sắp xếp, kích thước `2 ^ nBits` phần tử
 ##### Cài đặt
 * File code được cài đặt ở [Parallel_v4](Code%20Version/Parallel_v4.cu)
-* Kết quả: ![Hình ảnh chưa có, bổ sung sau](Report)
-* Nhận xét: ....
+* Kết quả: ![Hình ảnh chưa có, bổ sung sau](Report/parallel_version4.png)
+* Nhận xét: Tốc độ chạy tăng lên
 
 #### 6.5 Lần tối ưu hóa 5
 ##### Phân tích
@@ -132,8 +135,8 @@ câu lệnh `__syncthreads()` dùng để `debug` và chưa load mảng `scanHis
 * Ở lần trước thì `smem` gồm 4 phần dữ liệu, bây giờ ta sẽ thêm một phần chứa `scanHistogramArrayTranpose` cho từng block, sẽ có `2 ^ nBits` phần tử. Khi chép dữ liệu cần lưu ý rằng số thread có thể sẽ nhỏ hơn số `nBins`
 ##### Cài đặt
 * File code được cài đặt ở [Parallel_v5](Code%20Version/Parallel_v5.cu)
-* Kết quả: ![Hình ảnh chưa có, bổ sung sau](Report)
-* Nhận xét: ....
+* Kết quả: ![Hình ảnh chưa có, bổ sung sau](Report/parallel_version5.png)
+* Nhận xét: Tốc độ chạy giảm đi một chút
 
 #### 6.6 Lần tối ưu hóa 6
 ##### Phân tích
@@ -142,8 +145,8 @@ câu lệnh `__syncthreads()` dùng để `debug` và chưa load mảng `scanHis
 * Ở phần cấp phát bộ nhớ, hiện tại thì nhóm đang lãng phí tài nguyên khi có thể tái sử dụng `d_histArr` thay vì tạo `d_scanHistArrTranpose`
 ##### Cài đặt
 * File code được cài đặt ở [Parallel_v6](Code%20Version/Parallel_v6.cu)
-* Kết quả: ![Hình ảnh chưa có, bổ sung sau](Report)
-* Nhận xét: ....
+* Kết quả: ![Hình ảnh chưa có, bổ sung sau](Report/parallel_version6.png)
+* Nhận xét: Tốc độ chạy tăng lên
 
 #### 6.7 Lần tối ưu hóa 7
 ##### Phân tích
@@ -152,5 +155,5 @@ câu lệnh `__syncthreads()` dùng để `debug` và chưa load mảng `scanHis
 * Nhóm sẽ tiến hành tối ưu kernel tính hist bằng cách sử dụng `atomicAdd` trên `SMEM`
 ##### Cài đặt
 * File code được cài đặt ở [Parallel_v7](Code%20Version/Parallel_v7.cu)
-* Kết quả: ![Hình ảnh chưa có, bổ sung sau](Report)
-* Nhận xét: ....
+* Kết quả: ![Hình ảnh chưa có, bổ sung sau](Report/parallel_version7.png)
+* Nhận xét: Tốc độ chạy tăng lên
